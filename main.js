@@ -8,6 +8,17 @@ let isQuitting = false;
 let lastTimeText = '00:00:00';
 let focusWindow = null;
 
+// Timer state for background processing
+let timerState = {
+  isRunning: false,
+  remainingSeconds: 0,
+  initialSeconds: 0,
+  queueMode: false,
+  todos: [],
+  activeTodoId: null,
+  intervalId: null
+};
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 820,
@@ -81,6 +92,139 @@ ipcMain.handle('notify', (_event, { title, body }) => {
 
 ipcMain.handle('timer:getLatest', () => lastTimeText);
 
+// Background timer functions
+function formatTime(seconds) {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function startBackgroundTimer() {
+  if (timerState.intervalId) {
+    clearInterval(timerState.intervalId);
+  }
+  
+  timerState.intervalId = setInterval(() => {
+    if (!timerState.isRunning) return;
+    
+    if (timerState.queueMode) {
+      // Process todos queue
+      const idx = timerState.todos.findIndex(t => t.estimateSeconds > 0);
+      if (idx === -1) {
+        // All todos completed
+        completeAllTodos();
+        return;
+      }
+      
+      const todo = timerState.todos[idx];
+      if (todo.estimateSeconds > 0) {
+        todo.estimateSeconds -= 1;
+      }
+      
+      if (todo.estimateSeconds <= 0) {
+        // Todo completed
+        const completed = timerState.todos.splice(idx, 1)[0];
+        sendNotification('To-Do Complete', `"${completed.title}" selesai.`);
+        playNotificationSound();
+      }
+      
+      // Update active todo
+      const nextIdx = timerState.todos.findIndex(t => t.estimateSeconds > 0);
+      timerState.activeTodoId = nextIdx !== -1 ? timerState.todos[nextIdx].id : null;
+      
+      // Check if all todos are done
+      const totalRemaining = timerState.todos.reduce((sum, t) => sum + Math.max(0, t.estimateSeconds), 0);
+      if (totalRemaining <= 0) {
+        completeAllTodos();
+        return;
+      }
+      
+      // Update display with total remaining time
+      const totalText = formatTime(totalRemaining);
+      updateTimerDisplay(totalText);
+    } else {
+      // Regular countdown timer
+      if (timerState.remainingSeconds > 0) {
+        timerState.remainingSeconds -= 1;
+        const timeText = formatTime(timerState.remainingSeconds);
+        updateTimerDisplay(timeText);
+        
+        if (timerState.remainingSeconds === 0) {
+          completeTimer();
+        }
+      }
+    }
+  }, 1000);
+}
+
+function stopBackgroundTimer() {
+  if (timerState.intervalId) {
+    clearInterval(timerState.intervalId);
+    timerState.intervalId = null;
+  }
+  timerState.isRunning = false;
+}
+
+function updateTimerDisplay(timeText) {
+  lastTimeText = timeText;
+  updateTrayTitle();
+  
+  // Send update to main window - only send serializable data
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('timer:backgroundUpdate', {
+      timeText,
+      remainingSeconds: timerState.remainingSeconds,
+      queueMode: timerState.queueMode,
+      todos: timerState.todos,
+      activeTodoId: timerState.activeTodoId,
+      isRunning: timerState.isRunning
+    });
+  }
+  
+  // Send update to focus window
+  if (focusWindow && !focusWindow.isDestroyed()) {
+    focusWindow.webContents.send('focus:update', timeText);
+  }
+}
+
+function completeTimer() {
+  stopBackgroundTimer();
+  sendNotification('Timer Complete', 'Your countdown has finished.');
+  playNotificationSound();
+  
+  // Auto-complete active todo if in queue mode
+  if (timerState.activeTodoId) {
+    const idx = timerState.todos.findIndex(t => t.id === timerState.activeTodoId);
+    if (idx !== -1) {
+      timerState.todos.splice(idx, 1);
+      timerState.activeTodoId = null;
+    }
+  }
+}
+
+function completeAllTodos() {
+  stopBackgroundTimer();
+  sendNotification('Semua To-Do Selesai', 'Semua tugas telah diselesaikan.');
+  playNotificationSound();
+}
+
+function sendNotification(title, body) {
+  try {
+    const notification = new Notification({ title, body });
+    notification.show();
+  } catch (error) {
+    console.error('Failed to show notification:', error);
+  }
+}
+
+function playNotificationSound() {
+  // We'll let the renderer handle sound playing
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('timer:playSound');
+  }
+}
+
 ipcMain.handle('focus:open', () => {
   if (focusWindow && !focusWindow.isDestroyed()) {
     focusWindow.show();
@@ -128,6 +272,55 @@ ipcMain.on('timer:update', (_event, timeText) => {
       focusWindow.webContents.send('focus:update', lastTimeText);
     }
   }
+});
+
+// Timer control IPC handlers
+ipcMain.handle('timer:start', (_event, data) => {
+  timerState.isRunning = true;
+  timerState.remainingSeconds = data.remainingSeconds || 0;
+  timerState.initialSeconds = data.initialSeconds || 0;
+  timerState.queueMode = data.queueMode || false;
+  timerState.todos = data.todos || [];
+  timerState.activeTodoId = data.activeTodoId || null;
+  
+  startBackgroundTimer();
+  return true;
+});
+
+ipcMain.handle('timer:pause', () => {
+  timerState.isRunning = false;
+  stopBackgroundTimer();
+  return true;
+});
+
+ipcMain.handle('timer:reset', (_event, data) => {
+  stopBackgroundTimer();
+  timerState.isRunning = false;
+  timerState.remainingSeconds = data.remainingSeconds || 0;
+  timerState.initialSeconds = data.initialSeconds || 0;
+  timerState.queueMode = data.queueMode || false;
+  timerState.todos = data.todos || [];
+  timerState.activeTodoId = data.activeTodoId || null;
+  
+  const timeText = formatTime(timerState.remainingSeconds);
+  updateTimerDisplay(timeText);
+  return true;
+});
+
+ipcMain.handle('timer:getState', () => {
+  return {
+    isRunning: timerState.isRunning,
+    remainingSeconds: timerState.remainingSeconds,
+    initialSeconds: timerState.initialSeconds,
+    queueMode: timerState.queueMode,
+    todos: timerState.todos,
+    activeTodoId: timerState.activeTodoId
+  };
+});
+
+ipcMain.handle('timer:updateState', (_event, newState) => {
+  timerState = { ...timerState, ...newState };
+  return true;
 });
 
 function createTray() {
