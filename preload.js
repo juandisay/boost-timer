@@ -25,7 +25,27 @@ contextBridge.exposeInMainWorld('api', {
     try { ipcRenderer.send('timer:update', timeText); } catch (_) {}
   },
   focusOpen: () => ipcRenderer.invoke('focus:open'),
-  focusClose: () => ipcRenderer.invoke('focus:close')
+  focusClose: () => ipcRenderer.invoke('focus:close'),
+  // Background timer control
+  startTimer: (data) => ipcRenderer.invoke('timer:start', data),
+  pauseTimer: () => ipcRenderer.invoke('timer:pause'),
+  resetTimer: (data) => ipcRenderer.invoke('timer:reset', data),
+  getTimerState: () => ipcRenderer.invoke('timer:getState'),
+  updateTimerState: (state) => ipcRenderer.invoke('timer:updateState', state),
+  onTimerBackgroundUpdate: (handler) => {
+    try {
+      const listener = (_e, data) => handler(data);
+      ipcRenderer.on('timer:backgroundUpdate', listener);
+      return () => ipcRenderer.off('timer:backgroundUpdate', listener);
+    } catch (_) { return () => {}; }
+  },
+  onTimerPlaySound: (handler) => {
+    try {
+      const listener = () => handler();
+      ipcRenderer.on('timer:playSound', listener);
+      return () => ipcRenderer.off('timer:playSound', listener);
+    } catch (_) { return () => {}; }
+  }
 });
 
 // Additional channel helpers for focus window

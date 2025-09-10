@@ -26,6 +26,7 @@
   let state = 'idle'; // 'idle' | 'running' | 'paused' | 'finished'
   let queueMode = false; // when true, display shows sum of todos and ticks through them sequentially
   let initialQueueTotalSeconds = 0; // baseline for progress in queue mode
+  let backgroundTimerActive = false; // Track if background timer is running
 
   // To-Do state
   /** @type {{id:string,title:string,estimateSeconds:number,completed:boolean}[]} */
@@ -81,46 +82,50 @@
     renderTodos();
   }
 
-  function tick() {
-    if (queueMode) {
-      // process first incomplete todo
-      const idx = firstIncompleteIndex();
-      if (idx === -1) {
-        // nothing left
-        completeAll();
-        return;
-      }
-      const t = todos[idx];
-      if (t.estimateSeconds > 0) {
-        t.estimateSeconds -= 1;
-        saveTodos();
-      }
-      if (t.estimateSeconds <= 0) {
-        // delete finished item and notify
-        const finished = todos.splice(idx, 1)[0];
-        saveTodos();
-        if (window.api && typeof window.api.notify === 'function') {
-          window.api.notify('To-Do Complete', `"${finished.title}" selesai.`);
-        }
-        try { doneSound.volume = 0.6; doneSound.currentTime = 0; doneSound.play().catch(() => {}); } catch (_) {}
-      }
-      // refresh active id to new first incomplete
-      const nextIdx = firstIncompleteIndex();
-      activeTodoId = nextIdx !== -1 ? todos[nextIdx].id : null;
-      render();
-      if (totalRemainingSeconds() <= 0) {
-        completeAll();
-      }
-    } else {
-      if (remainingSeconds > 0) {
-        remainingSeconds -= 1;
-        render();
-        if (remainingSeconds === 0) complete();
-      }
+  // Background timer update handler
+  function handleBackgroundUpdate(data) {
+    if (!data) return;
+    
+    const { timeText, remainingSeconds: bgRemainingSeconds, queueMode: bgQueueMode, todos: bgTodos, activeTodoId: bgActiveTodoId, isRunning } = data;
+    
+    // Update local state from background timer
+    remainingSeconds = bgRemainingSeconds || remainingSeconds;
+    queueMode = bgQueueMode || queueMode;
+    todos = bgTodos || todos;
+    activeTodoId = bgActiveTodoId || activeTodoId;
+    
+    // Update display
+    if (timeText) {
+      displayEl.textContent = timeText;
+      if (focusTimeEl) focusTimeEl.textContent = timeText;
     }
+    
+    // Update state based on background timer
+    if (isRunning) {
+      state = 'running';
+    } else {
+      state = 'paused';
+    }
+    
+    // Check for completion
+    if (!isRunning && remainingSeconds === 0) {
+      state = 'finished';
+    }
+    
+    // Update UI
+    render();
+  }
+  
+  // Sound notification handler
+  function handlePlaySound() {
+    try { 
+      doneSound.volume = 0.6; 
+      doneSound.currentTime = 0; 
+      doneSound.play().catch(() => {}); 
+    } catch (_) {}
   }
 
-  function start() {
+  async function start() {
     if (state === 'running') return;
     // Prefer queue mode when there are todos
     const hasTodos = todos.length > 0;
@@ -140,29 +145,68 @@
     }
     state = 'running';
     render();
-    clearInterval(intervalId);
-    intervalId = setInterval(tick, 1000);
+    
+    // Use background timer instead of local setInterval
+    try {
+      await window.api.startTimer({
+        remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+        initialSeconds: queueMode ? initialQueueTotalSeconds : initialTotalSeconds,
+        queueMode: queueMode,
+        todos: todos,
+        activeTodoId: activeTodoId
+      });
+      backgroundTimerActive = true;
+    } catch (error) {
+      console.error('Failed to start background timer:', error);
+      // Fallback to local timer
+      clearInterval(intervalId);
+      intervalId = setInterval(tick, 1000);
+    }
   }
 
-  function pause() {
+  async function pause() {
     if (state !== 'running') return;
     state = 'paused';
-    clearInterval(intervalId);
+    
+    // Use background timer pause
+    try {
+      await window.api.pauseTimer();
+      backgroundTimerActive = false;
+    } catch (error) {
+      console.error('Failed to pause background timer:', error);
+      // Fallback to local timer
+      clearInterval(intervalId);
+    }
     render();
   }
 
-  function reset() {
+  async function reset() {
     clearInterval(intervalId);
     state = 'idle';
     // reset manual timer to inputs; queue mode remains but idle
     remainingSeconds = readInputsToSeconds();
     if (queueMode) initialQueueTotalSeconds = totalRemainingSeconds();
+    
+    // Use background timer reset
+    try {
+      await window.api.resetTimer({
+        remainingSeconds: remainingSeconds,
+        initialSeconds: initialTotalSeconds,
+        queueMode: queueMode,
+        todos: todos,
+        activeTodoId: activeTodoId
+      });
+      backgroundTimerActive = false;
+    } catch (error) {
+      console.error('Failed to reset background timer:', error);
+    }
     render();
   }
 
   function complete() {
     clearInterval(intervalId);
     state = 'finished';
+    backgroundTimerActive = false;
     render();
     try { doneSound.volume = 0.6; doneSound.currentTime = 0; doneSound.play().catch(() => {}); } catch (_) {}
     if (window.api && typeof window.api.notify === 'function') {
@@ -186,6 +230,7 @@
     clearInterval(intervalId);
     state = 'finished';
     queueMode = true;
+    backgroundTimerActive = false;
     render();
     try { doneSound.volume = 0.6; doneSound.currentTime = 0; doneSound.play().catch(() => {}); } catch (_) {}
     if (window.api && typeof window.api.notify === 'function') {
@@ -216,6 +261,38 @@
     try { await window.api.setAlwaysOnTop(e.target.checked); } catch (_) {}
   });
 
+  // Initialize background timer listeners
+  if (window.api && typeof window.api.onTimerBackgroundUpdate === 'function') {
+    window.api.onTimerBackgroundUpdate(handleBackgroundUpdate);
+  }
+  
+  if (window.api && typeof window.api.onTimerPlaySound === 'function') {
+    window.api.onTimerPlaySound(handlePlaySound);
+  }
+
+  // Handle window visibility changes to sync timer state
+  document.addEventListener('visibilitychange', async () => {
+    if (!document.hidden && window.api && typeof window.api.getTimerState === 'function') {
+      try {
+        const bgState = await window.api.getTimerState();
+        if (bgState) {
+          // Sync local state with background timer
+          remainingSeconds = bgState.remainingSeconds || remainingSeconds;
+          queueMode = bgState.queueMode || queueMode;
+          todos = bgState.todos || todos;
+          activeTodoId = bgState.activeTodoId || activeTodoId;
+          state = bgState.isRunning ? 'running' : 'paused';
+          backgroundTimerActive = bgState.isRunning;
+          
+          // Update UI
+          render();
+        }
+      } catch (error) {
+        console.error('Failed to sync timer state:', error);
+      }
+    }
+  });
+
   // Initialize view
   remainingSeconds = readInputsToSeconds();
   render();
@@ -237,6 +314,7 @@
   function renderTodos() {
     // build list
     todoList.innerHTML = '';
+    console.log('Rendering todos:', todos.length);
     todos.forEach((t, index) => {
       const li = document.createElement('li');
       li.className = 'todo-item' + (t.id === activeTodoId ? ' active' : '');
@@ -260,38 +338,163 @@
         start();
       });
       // actions
-      li.querySelector('[data-action="complete"]').addEventListener('click', (e) => {
+      li.querySelector('[data-action="complete"]').addEventListener('click', async (e) => {
         e.stopPropagation();
         // delete item on manual complete
         const idx2 = todos.findIndex(x => x.id === t.id);
         if (idx2 !== -1) todos.splice(idx2,1);
-        if (activeTodoId === t.id) { pause(); activeTodoId = null; }
-        saveTodos();
-        render();
-      });
-      li.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const newTitle = prompt('Edit title', t.title);
-        if (newTitle != null && newTitle.trim() !== '') t.title = newTitle.trim();
-        const newMinutes = prompt('Edit estimate (minutes)', Math.round(t.estimateSeconds/60).toString());
-        if (newMinutes != null && !Number.isNaN(parseInt(newMinutes,10))) {
-          t.estimateSeconds = clamp(parseInt(newMinutes,10),1,9999)*60;
-        }
-        if (activeTodoId === t.id) {
-          remainingSeconds = t.estimateSeconds;
-          state = 'idle';
+        if (activeTodoId === t.id) { 
+          await pause(); 
+          activeTodoId = null; 
         }
         saveTodos();
+        
+        // Update background timer state if it's running
+        if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+          try {
+            await window.api.updateTimerState({
+              todos: todos,
+              remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+              activeTodoId: activeTodoId
+            });
+          } catch (error) {
+            console.error('Failed to update background timer state:', error);
+          }
+        }
+        
         render();
       });
-      li.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+      const editButton = li.querySelector('[data-action="edit"]');
+      if (editButton) {
+        editButton.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          console.log('Edit button clicked for todo:', t.id, t.title);
+        
+        try {
+          // Create a simple edit interface
+          const editDiv = document.createElement('div');
+          editDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 2px solid #333; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+          editDiv.innerHTML = `
+            <h3 style="margin: 0 0 15px 0;">Edit Todo</h3>
+            <div style="margin-bottom: 10px;">
+              <label style="display: block; margin-bottom: 5px;">Title:</label>
+              <input type="text" id="editTitle" value="${t.title}" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px;">Estimate (minutes):</label>
+              <input type="number" id="editMinutes" value="${Math.round(t.estimateSeconds/60)}" min="1" max="9999" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="text-align: right;">
+              <button id="editCancel" style="margin-right: 10px; padding: 5px 15px; border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px; cursor: pointer;">Cancel</button>
+              <button id="editSave" style="padding: 5px 15px; border: 1px solid #007cba; background: #007cba; color: white; border-radius: 4px; cursor: pointer;">Save</button>
+            </div>
+          `;
+          
+          document.body.appendChild(editDiv);
+          
+          // Focus on title input
+          const titleInput = editDiv.querySelector('#editTitle');
+          const minutesInput = editDiv.querySelector('#editMinutes');
+          titleInput.focus();
+          titleInput.select();
+          
+          // Handle save
+          const saveEdit = () => {
+            const newTitle = titleInput.value.trim();
+            const newMinutes = parseInt(minutesInput.value, 10);
+            
+            if (newTitle && newMinutes > 0) {
+              t.title = newTitle;
+              t.estimateSeconds = clamp(newMinutes, 1, 9999) * 60;
+              console.log('Todo updated:', { title: t.title, estimateSeconds: t.estimateSeconds });
+              
+              // Update active todo if this is the current one
+              if (activeTodoId === t.id) {
+                remainingSeconds = t.estimateSeconds;
+                state = 'idle';
+                console.log('Updated active todo remaining seconds:', remainingSeconds);
+              }
+              
+              // Save to localStorage
+              saveTodos();
+              console.log('Todos saved to localStorage');
+              
+              // Update background timer state if it's running
+              if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+                window.api.updateTimerState({
+                  todos: todos,
+                  remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+                  activeTodoId: activeTodoId
+                }).then(() => {
+                  console.log('Background timer state updated');
+                }).catch(error => {
+                  console.error('Failed to update background timer state:', error);
+                });
+              }
+              
+              // Re-render the UI
+              render();
+              console.log('UI re-rendered after edit');
+            }
+            
+            document.body.removeChild(editDiv);
+          };
+          
+          // Handle cancel
+          const cancelEdit = () => {
+            document.body.removeChild(editDiv);
+          };
+          
+          // Event listeners
+          editDiv.querySelector('#editSave').addEventListener('click', saveEdit);
+          editDiv.querySelector('#editCancel').addEventListener('click', cancelEdit);
+          
+          // Handle Enter key
+          const handleKeyPress = (e) => {
+            if (e.key === 'Enter') {
+              saveEdit();
+            } else if (e.key === 'Escape') {
+              cancelEdit();
+            }
+          };
+          
+          titleInput.addEventListener('keydown', handleKeyPress);
+          minutesInput.addEventListener('keydown', handleKeyPress);
+          
+          // Close on outside click
+          editDiv.addEventListener('click', (e) => {
+            if (e.target === editDiv) {
+              cancelEdit();
+            }
+          });
+          
+        } catch (error) {
+          console.error('Error in edit todo:', error);
+        }
+        });
+      } else {
+        console.error('Edit button not found for todo:', t.id);
+      }
+      li.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
         e.stopPropagation();
         const idx = todos.findIndex(x => x.id === t.id);
         if (idx !== -1) todos.splice(idx,1);
         if (activeTodoId === t.id) {
           activeTodoId = null;
-          reset();
+          await reset();
         } else {
+          // Update background timer state if it's running
+          if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+            try {
+              await window.api.updateTimerState({
+                todos: todos,
+                remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+                activeTodoId: activeTodoId
+              });
+            } catch (error) {
+              console.error('Failed to update background timer state:', error);
+            }
+          }
           render();
         }
         saveTodos();
@@ -304,7 +507,7 @@
       });
       li.addEventListener('dragend', () => li.classList.remove('dragging'));
       li.addEventListener('dragover', (e) => e.preventDefault());
-      li.addEventListener('drop', (e) => {
+      li.addEventListener('drop', async (e) => {
         e.preventDefault();
         const draggedId = e.dataTransfer.getData('text/plain');
         if (!draggedId || draggedId === t.id) return;
@@ -314,6 +517,20 @@
         const [moved] = todos.splice(from,1);
         todos.splice(to,0,moved);
         saveTodos();
+        
+        // Update background timer state if it's running
+        if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+          try {
+            await window.api.updateTimerState({
+              todos: todos,
+              remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+              activeTodoId: activeTodoId
+            });
+          } catch (error) {
+            console.error('Failed to update background timer state:', error);
+          }
+        }
+        
         renderTodos();
       });
 
@@ -372,11 +589,25 @@
     });
   }
   if (clearAllBtn) {
-    clearAllBtn.addEventListener('click', () => {
+    clearAllBtn.addEventListener('click', async () => {
       if (!confirm('Clear all tasks?')) return;
       todos = [];
       activeTodoId = null;
       saveTodos();
+      
+      // Update background timer state if it's running
+      if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+        try {
+          await window.api.updateTimerState({
+            todos: todos,
+            remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+            activeTodoId: activeTodoId
+          });
+        } catch (error) {
+          console.error('Failed to update background timer state:', error);
+        }
+      }
+      
       render();
     });
   }
