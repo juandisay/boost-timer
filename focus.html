@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Focus</title>
+    <style>
+      html,body{height:100%}
+      body{margin:0;background:#0b0e14;color:#e6e8ee;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+      .wrap{height:100%;display:flex;align-items:center;justify-content:center}
+      .time{font-variant-numeric:tabular-nums;font-size:72px;letter-spacing:2px}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="time" id="focusTime">00:00:00</div>
+    </div>
+    <script>
+      const el = document.getElementById('focusTime');
+      // initial value
+      if (window.focusApi && typeof window.focusApi.getLatestTime === 'function') {
+        window.focusApi.getLatestTime().then((t) => { if (el) el.textContent = t; }).catch(() => {});
+      }
+      // subscribe updates
+      if (window.focusApi && typeof window.focusApi.onUpdate === 'function') {
+        window.focusApi.onUpdate((text) => { if (el) el.textContent = text; });
+      }
+    </script>
+  </body>
+  </html>
+
+

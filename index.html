@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Boost Timer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <div class="logo">⏱</div>
+          <h1>Boost Timer</h1>
+        </div>
+        <div class="top-actions">
+          <div class="summary">
+            <span class="pill" id="totalRemaining">00:00:00</span>
+            <span class="muted" id="tasksCount">0 tasks</span>
+          </div>
+          <label class="aot">
+            <input id="alwaysOnTop" type="checkbox" />
+            Always on top
+          </label>
+        </div>
+      </header>
+
+      <main>
+        <div class="display" id="display">00:00:00</div>
+        <div class="progress-wrap">
+          <div class="progress" id="progressBar" style="width: 0%"></div>
+        </div>
+
+        <form id="timeForm" class="inputs" autocomplete="off">
+          <div class="input-group">
+            <label for="hours">Hours</label>
+            <input id="hours" type="number" min="0" max="99" value="0" />
+          </div>
+          <div class="input-group">
+            <label for="minutes">Minutes</label>
+            <input id="minutes" type="number" min="0" max="59" value="5" />
+          </div>
+          <div class="input-group">
+            <label for="seconds">Seconds</label>
+            <input id="seconds" type="number" min="0" max="59" value="0" />
+          </div>
+        </form>
+
+        <div class="controls">
+          <button id="startPause" class="primary">Start</button>
+          <button id="reset" class="ghost">Reset</button>
+          <button id="focusMode" class="ghost">Focus</button>
+        </div>
+
+        <section class="todos">
+          <div class="todos-header">
+            <h2>Plannings</h2>
+            <form id="todoForm" class="todo-form" autocomplete="off">
+              <input id="todoTitle" type="text" placeholder="Task title" required />
+              <input id="todoEstimate" type="number" min="1" value="25" />
+              <select id="todoUnit">
+                <option value="m">min</option>
+                <option value="h">hr</option>
+              </select>
+              <button type="submit" class="primary">Add</button>
+            </form>
+          </div>
+
+          <div class="todos-toolbar">
+            <div class="toolbar-left">
+              <input id="todoSearch" type="search" placeholder="Search tasks..." />
+            </div>
+            <div class="toolbar-right">
+              <button id="clearAll" class="ghost">Clear All</button>
+            </div>
+          </div>
+
+          <ul id="todoList" class="todo-list" aria-label="To-Do List"></ul>
+          <div class="todo-hint">Drag items to reorder. Click a task to select and start timing.</div>
+        </section>
+      </main>
+    </div>
+
+    <div id="focusOverlay" class="focus-overlay" role="dialog" aria-modal="true" aria-label="Focus Timer">
+      <div class="focus-timer">
+        <div id="focusTime" class="focus-time">00:00:00</div>
+        <div class="focus-sub">Always on top while active</div>
+        <div class="focus-actions">
+          <button id="focusClose" class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <audio id="doneSound" preload="auto">
+      <source src="data:audio/wav;base64,UklGRmIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQB4AAAAAAAAgICAf39/f39/f39/f39/f39/f39/f38AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" type="audio/wav" />
+    </audio>
+
+    <script src="renderer.js"></script>
+  </body>
+  </html>
+
+

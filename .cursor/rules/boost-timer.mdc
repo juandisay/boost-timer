@@ -1,0 +1,44 @@
+---
+description: |
+  Boost Timer - Cursor rules for working on this Electron app.
+
+  Overview
+  - Desktop timer with To-Do queueing built on Electron (Node 18+).
+  - Targets macOS Apple Silicon; electron-builder configured for icons and mac arm64.
+  - Core files:
+    - main.js (main process: window, tray, focus window, IPC, notifications)
+    - preload.js (secure bridge: always-on-top, notify, focus, timer updates)
+    - index.html / style.css (UI and styles)
+    - renderer.js (timer logic, to-do CRUD + DnD, queue mode, progress)
+    - focus.html (frameless always-on-top countdown)
+
+  Conventions
+  - Keep renderer sandboxed: use preload-exposed APIs only; no nodeIntegration.
+  - Prefer small, single-responsibility functions; avoid deep nesting.
+  - Persist to-dos to localStorage key `todos.v1`.
+  - Timer states: 'idle' | 'running' | 'paused' | 'finished'.
+  - Queue mode: total time = sum(todos[].estimateSeconds); auto-delete finished task.
+  - Progress: queue uses initialQueueTotalSeconds; manual uses initialTotalSeconds.
+
+  UX Rules
+  - Minimal, modern, responsive design.
+  - Always show large HH:MM:SS; progress bar beneath.
+  - To-Do list: card layout, drag handle, search, Clear All.
+  - Tray shows live time; window close/minimize hides to tray, not quit.
+  - Focus Mode: separate frameless window with only time; syncs every second.
+
+  Notifications & Sound
+  - Use HTML5 Notification when permitted; fallback to main-process Notification.
+  - Play a subtle beep (~0.6 volume) on completion.
+
+  Build
+  - electron-builder config in package.json; icons under build/ (icns/ico/png).
+  - mac target: dmg arm64; artifact name uses ${productName}-${version}-${os}-${arch}.${ext}.
+
+  Testing
+  - Dev run: `npm run dev`. Build: `npm run build`.
+  - Verify tray updates, focus window sync, notifications, and progress fill.
+globs:
+  - "**/*"
+alwaysApply: true
+---

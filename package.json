@@ -1,0 +1,54 @@
+{
+  "name": "boost-timer",
+  "version": "1.0.0",
+  "description": "A simple, modern desktop boost timer built with Electron.",
+  "main": "main.js",
+  "type": "commonjs",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --mac --arm64"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.example.boosttimer",
+    "productName": "Boost Timer",
+    "files": [
+      "**/*",
+      "!dist",
+      "!node_modules/.cache/**"
+    ],
+    "asar": true,
+    "mac": {
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": false,
+      "entitlements": null
+    },
+    "win": { "icon": "build/icon.ico" },
+    "linux": { "icon": "build/icon.png" },
+    "directories": {
+      "output": "dist"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
+
