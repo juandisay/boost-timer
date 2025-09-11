@@ -73,8 +73,12 @@
         const denom = initialQueueTotalSeconds > 0 ? initialQueueTotalSeconds : totalSecs;
         pct = denom > 0 ? Math.round((1 - (totalSecs / denom)) * 100) : 100;
       } else {
-        const denom = initialTotalSeconds > 0 ? initialTotalSeconds : remainingSeconds;
-        pct = denom > 0 ? Math.round((1 - (remainingSeconds / denom)) * 100) : 0;
+        // Fix: Only calculate progress if we have a valid initial value
+        if (initialTotalSeconds > 0) {
+          pct = Math.round((1 - (remainingSeconds / initialTotalSeconds)) * 100);
+        } else {
+          pct = 0;
+        }
       }
       pct = Math.max(0, Math.min(100, pct));
       progressBarEl.style.width = `${pct}%`;
@@ -622,6 +626,577 @@
   function totalRemainingSeconds() {
     return todos.reduce((sum, t) => sum + Math.max(0, t.estimateSeconds), 0);
   }
+
+  /* =============================
+   * Next Todo Modal Logic
+   * ============================= */
+  
+  // Modal state
+  let modalState = {
+    isOpen: false,
+    detectionTimer: null,
+    countdownTimer: null,
+    countdownSeconds: 20,
+    lastTodoCount: 0,
+    lastCompletedTodo: null,
+    preferences: {
+      enabled: true,
+      autoCloseDelay: 20,
+      showAfterCompletion: true,
+      defaultTimeEstimate: 25,
+      defaultTimeUnit: 'm'
+    }
+  };
+
+  /**
+   * Load modal preferences from localStorage
+   */
+  function loadModalPreferences() {
+    try {
+      const saved = localStorage.getItem('modalPreferences.v1');
+      if (saved) {
+        const preferences = JSON.parse(saved);
+        modalState.preferences = { ...modalState.preferences, ...preferences };
+      }
+    } catch (error) {
+      console.error('Failed to load modal preferences:', error);
+    }
+  }
+
+  /**
+   * Save modal preferences to localStorage
+   */
+  function saveModalPreferences() {
+    try {
+      localStorage.setItem('modalPreferences.v1', JSON.stringify(modalState.preferences));
+    } catch (error) {
+      console.error('Failed to save modal preferences:', error);
+    }
+  }
+
+  /**
+   * Save modal state to localStorage
+   */
+  function saveModalState() {
+    try {
+      const stateToSave = {
+        lastTodoCount: modalState.lastTodoCount,
+        lastCompletedTodo: modalState.lastCompletedTodo,
+        preferences: modalState.preferences
+      };
+      localStorage.setItem('modalState.v1', JSON.stringify(stateToSave));
+    } catch (error) {
+      console.error('Failed to save modal state:', error);
+    }
+  }
+
+  /**
+   * Load modal state from localStorage
+   */
+  function loadModalState() {
+    try {
+      const saved = localStorage.getItem('modalState.v1');
+      if (saved) {
+        const state = JSON.parse(saved);
+        modalState.lastTodoCount = state.lastTodoCount || 0;
+        modalState.lastCompletedTodo = state.lastCompletedTodo || null;
+        if (state.preferences) {
+          modalState.preferences = { ...modalState.preferences, ...state.preferences };
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load modal state:', error);
+    }
+  }
+
+  /**
+   * Show the settings modal
+   */
+  function showSettingsModal() {
+    // Populate form with current preferences
+    modalEnabledCheckbox.checked = modalState.preferences.enabled;
+    showAfterCompletionCheckbox.checked = modalState.preferences.showAfterCompletion;
+    autoCloseDelayInput.value = modalState.preferences.autoCloseDelay;
+    defaultTimeEstimateInput.value = modalState.preferences.defaultTimeEstimate;
+    defaultTimeUnitSelect.value = modalState.preferences.defaultTimeUnit;
+    
+    // Show modal
+    modalSettingsModal.classList.add('show');
+    modalSettingsModal.style.display = 'flex';
+    
+    // Focus on first input
+    setTimeout(() => {
+      modalEnabledCheckbox.focus();
+    }, 100);
+  }
+
+  /**
+   * Hide the settings modal
+   */
+  function hideSettingsModal() {
+    modalSettingsModal.classList.remove('show');
+    setTimeout(() => {
+      modalSettingsModal.style.display = 'none';
+    }, 300);
+  }
+
+  /**
+   * Handle settings form submission
+   */
+  function handleSettingsSubmit(event) {
+    event.preventDefault();
+    
+    // Update preferences
+    modalState.preferences.enabled = modalEnabledCheckbox.checked;
+    modalState.preferences.showAfterCompletion = showAfterCompletionCheckbox.checked;
+    modalState.preferences.autoCloseDelay = parseInt(autoCloseDelayInput.value) || 20;
+    modalState.preferences.defaultTimeEstimate = parseInt(defaultTimeEstimateInput.value) || 25;
+    modalState.preferences.defaultTimeUnit = defaultTimeUnitSelect.value;
+    
+    // Save preferences
+    saveModalPreferences();
+    saveModalState();
+    
+    // Close modal
+    hideSettingsModal();
+    
+    // Show confirmation (optional)
+    console.log('Modal settings saved successfully');
+  }
+
+  /**
+   * Handle modal action button clicks
+   */
+  function handleModalAction(action) {
+    const title = modalTaskTitle.value.trim();
+    const timeEstimate = parseInt(modalTimeEstimate.value) || modalState.preferences.defaultTimeEstimate;
+    const timeUnit = modalTimeUnit.value;
+    
+    if (!title && action !== 'take-break') {
+      modalTaskTitle.focus();
+      return;
+    }
+    
+    switch (action) {
+      case 'add-start':
+        if (title) {
+          addTodoFromModal();
+          closeNextTodoModal();
+        }
+        break;
+      case 'add-more':
+        if (title) {
+          addTodoFromModal();
+          // Clear form but keep modal open
+          modalTaskTitle.value = '';
+          modalTimeEstimate.value = modalState.preferences.defaultTimeEstimate;
+          modalTimeUnit.value = modalState.preferences.defaultTimeUnit;
+          modalTaskTitle.focus();
+        }
+        break;
+      case 'take-break':
+        closeNextTodoModal();
+        // Optionally start a break timer
+        break;
+      default:
+        closeNextTodoModal();
+    }
+  }
+
+  // Modal DOM elements
+  const nextTodoModal = document.getElementById('nextTodoModal');
+  const modalTaskTitle = document.getElementById('nextTodoTitle');
+  const modalTimeEstimate = document.getElementById('nextTodoEstimate');
+  const modalTimeUnit = document.getElementById('nextTodoUnit');
+  const modalCountdown = document.getElementById('modalCountdown');
+  const modalForm = document.getElementById('nextTodoForm');
+  
+  // Settings modal DOM elements
+  const modalSettingsModal = document.getElementById('modalSettingsModal');
+  const modalSettingsButton = document.getElementById('modalSettings');
+  const modalEnabledCheckbox = document.getElementById('modalEnabled');
+  const showAfterCompletionCheckbox = document.getElementById('showAfterCompletion');
+  const autoCloseDelayInput = document.getElementById('autoCloseDelay');
+  const defaultTimeEstimateInput = document.getElementById('defaultTimeEstimate');
+  const defaultTimeUnitSelect = document.getElementById('defaultTimeUnit');
+  const modalSettingsForm = document.getElementById('modalSettingsForm');
+  const cancelSettingsButton = document.getElementById('cancelSettings');
+
+  /**
+   * Initialize modal detection system
+   * Monitors for todo completion and triggers modal after delay
+   */
+  function initModalDetection() {
+    // Load saved state and preferences
+    loadModalState();
+    loadModalPreferences();
+    
+    modalState.lastTodoCount = todos.length;
+    
+    // Start monitoring for todo completion
+    setInterval(() => {
+      checkForTodoCompletion();
+    }, 1000);
+    
+    // Save state periodically
+    setInterval(() => {
+      saveModalState();
+    }, 30000); // Save every 30 seconds
+  }
+
+  /**
+   * Check if a todo was completed and trigger modal
+   */
+  function checkForTodoCompletion() {
+    const currentTodoCount = todos.length;
+    
+    // If todo count decreased, a todo was completed
+    if (currentTodoCount < modalState.lastTodoCount && !modalState.isOpen) {
+      modalState.lastTodoCount = currentTodoCount;
+      startModalCountdown();
+    } else {
+      modalState.lastTodoCount = currentTodoCount;
+    }
+  }
+
+  /**
+   * Start the countdown before showing modal
+   */
+  function startModalCountdown() {
+    if (!modalState.preferences.enabled || !modalState.preferences.showAfterCompletion) return;
+    
+    if (modalState.detectionTimer) {
+      clearTimeout(modalState.detectionTimer);
+    }
+    
+    modalState.detectionTimer = setTimeout(() => {
+      showNextTodoModal();
+    }, modalState.preferences.autoCloseDelay * 1000); // Configurable delay in seconds
+  }
+
+  /**
+   * Show the next todo modal with countdown
+   */
+  function showNextTodoModal() {
+    if (modalState.isOpen || !modalState.preferences.enabled) return;
+    
+    modalState.isOpen = true;
+    modalState.countdownSeconds = modalState.preferences.autoCloseDelay;
+    
+    // Reset form with preference defaults
+    modalTaskTitle.value = '';
+    modalTimeEstimate.value = modalState.preferences.defaultTimeEstimate;
+    modalTimeUnit.value = modalState.preferences.defaultTimeUnit;
+    
+    // Show modal with animation
+    nextTodoModal.classList.add('show');
+    
+    // Focus on title input
+    setTimeout(() => {
+      modalTaskTitle.focus();
+    }, 100);
+    
+    // Start countdown
+    startModalAutoClose();
+    
+    // Save state
+    saveModalState();
+    
+    // Add escape key listener
+    document.addEventListener('keydown', handleModalEscape);
+  }
+
+  /**
+   * Start auto-close countdown timer
+   */
+  function startModalAutoClose() {
+    updateCountdownDisplay();
+    
+    modalState.countdownTimer = setInterval(() => {
+      modalState.countdownSeconds--;
+      updateCountdownDisplay();
+      
+      if (modalState.countdownSeconds <= 0) {
+        closeNextTodoModal();
+      }
+    }, 1000);
+  }
+
+  /**
+   * Update countdown display
+   */
+  function updateCountdownDisplay() {
+    modalCountdown.textContent = `Auto-close in ${modalState.countdownSeconds}s`;
+  }
+
+  /**
+   * Close the next todo modal
+   */
+  function closeNextTodoModal() {
+    if (!modalState.isOpen) return;
+    
+    modalState.isOpen = false;
+    
+    // Clear timers
+    if (modalState.countdownTimer) {
+      clearInterval(modalState.countdownTimer);
+      modalState.countdownTimer = null;
+    }
+    
+    // Hide modal with animation
+    nextTodoModal.classList.remove('show');
+    
+    // Remove escape key listener
+    document.removeEventListener('keydown', handleModalEscape);
+    
+    // Save state
+    saveModalState();
+    
+    // Resume timer if it was paused
+    if (state === 'paused' && remainingSeconds > 0) {
+      setTimeout(() => {
+        start();
+      }, 500);
+    }
+  }
+
+  /**
+   * Handle escape key to close modal
+   */
+  function handleModalEscape(e) {
+    if (e.key === 'Escape') {
+      closeNextTodoModal();
+    }
+  }
+
+  /**
+   * Add new todo from modal
+   */
+  function addTodoFromModal() {
+    const title = modalTaskTitle.value.trim();
+    let estimate = parseInt(modalTimeEstimate.value || '0', 10) || modalState.preferences.defaultTimeEstimate;
+    const unit = modalTimeUnit.value;
+    
+    if (!title || estimate <= 0) {
+      // Focus back on empty field
+      if (!title) {
+        modalTaskTitle.focus();
+      } else {
+        modalTimeEstimate.focus();
+      }
+      return;
+    }
+    
+    // Update preferences based on user input
+    modalState.preferences.defaultTimeEstimate = estimate;
+    modalState.preferences.defaultTimeUnit = unit;
+    saveModalPreferences();
+    
+    // Convert to minutes if hours
+    if (unit === 'h') {
+      estimate = estimate * 60;
+    }
+    
+    const estimateSeconds = clamp(estimate, 1, 9999) * 60;
+    const newTodo = {
+      id: uid(),
+      title: title,
+      estimateSeconds: estimateSeconds,
+      completed: false
+    };
+    
+    // Add to todos list
+    todos.push(newTodo);
+    saveTodos();
+    
+    // Update modal state
+    modalState.lastTodoCount = todos.length;
+    saveModalState();
+    
+    // Update background timer state if running
+    if (backgroundTimerActive && window.api && typeof window.api.updateTimerState === 'function') {
+      window.api.updateTimerState({
+        todos: todos,
+        remainingSeconds: queueMode ? totalRemainingSeconds() : remainingSeconds,
+        activeTodoId: activeTodoId
+      }).catch(error => {
+        console.error('Failed to update background timer state:', error);
+      });
+    }
+    
+    // Re-render todos
+    renderTodos();
+    
+    // Set as active todo and start timer
+    setActiveTodo(newTodo.id);
+    
+    // Close modal
+    closeNextTodoModal();
+    
+    // Start timer with new todo
+    setTimeout(() => {
+      start();
+    }, 300);
+  }
+
+  /**
+   * Focus trap for modal accessibility
+   */
+  function trapFocus(e) {
+    if (!modalState.isOpen) return;
+    
+    const focusableElements = nextTodoModal.querySelectorAll(
+      'input, button, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    
+    if (e.key === 'Tab') {
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  }
+
+  // Modal event listeners
+  if (modalForm) {
+    modalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      addTodoFromModal();
+    });
+  }
+
+  // Modal button functionality is handled through data-action attributes
+  // in the handleModalAction function
+
+  // Focus trap
+  document.addEventListener('keydown', trapFocus);
+
+  // Click outside to close
+  if (nextTodoModal) {
+    nextTodoModal.addEventListener('click', (e) => {
+      if (e.target === nextTodoModal) {
+        closeNextTodoModal();
+      }
+    });
+  }
+
+  // Smart suggestions for task titles
+  if (modalTaskTitle) {
+    modalTaskTitle.addEventListener('input', (e) => {
+      const value = e.target.value.toLowerCase();
+      
+      // Auto-suggest time estimates based on common tasks
+      if (value.includes('meeting') || value.includes('call')) {
+        modalTimeEstimate.value = '30';
+        modalTimeUnit.value = 'm';
+      } else if (value.includes('break') || value.includes('coffee')) {
+        modalTimeEstimate.value = '15';
+        modalTimeUnit.value = 'm';
+      } else if (value.includes('review') || value.includes('check')) {
+        modalTimeEstimate.value = '10';
+        modalTimeUnit.value = 'm';
+      } else if (value.includes('deep work') || value.includes('focus')) {
+        modalTimeEstimate.value = '90';
+        modalTimeUnit.value = 'm';
+      }
+    });
+  }
+
+  // Modal action button event listeners
+  if (nextTodoModal) {
+    nextTodoModal.addEventListener('click', (e) => {
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      if (action) {
+        e.preventDefault();
+        handleModalAction(action);
+      }
+    });
+  }
+
+  // Handle modal form submission
+  if (modalForm) {
+    modalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleModalAction('add-start');
+    });
+  }
+
+  // Initialize modal detection system (already called above)
+  initModalDetection();
+
+  // Listen for modal triggers from main process
+  if (window.api && typeof window.api.onModalTrigger === 'function') {
+    window.api.onModalTrigger((data) => {
+      handleModalTrigger(data);
+    });
+  }
+
+  // Settings modal event listeners
+  if (modalSettingsButton) {
+    modalSettingsButton.addEventListener('click', showSettingsModal);
+  }
+
+  if (modalSettingsForm) {
+    modalSettingsForm.addEventListener('submit', handleSettingsSubmit);
+  }
+
+  if (cancelSettingsButton) {
+    cancelSettingsButton.addEventListener('click', hideSettingsModal);
+  }
+
+  // Close settings modal when clicking overlay
+  if (modalSettingsModal) {
+    modalSettingsModal.addEventListener('click', (event) => {
+      if (event.target === modalSettingsModal || event.target.classList.contains('modal-overlay')) {
+        hideSettingsModal();
+      }
+    });
+  }
+
+  // Handle escape key for settings modal
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modalSettingsModal.classList.contains('show')) {
+      hideSettingsModal();
+    }
+  });
+
+  /**
+   * Handle modal trigger from main process
+   * @param {Object} data - Trigger data from main process
+   */
+  function handleModalTrigger(data) {
+    if (!data) return;
+    
+    switch (data.action) {
+      case 'show':
+        showNextTodoModal();
+        break;
+      case 'hide':
+        closeNextTodoModal();
+        break;
+      case 'todoCompleted':
+        // Handle todo completion from background timer
+        // Trigger modal when a todo is completed, especially when no todos remain
+        modalState.lastCompletedTodo = data.completedTodo;
+        startModalCountdown();
+        break;
+      default:
+        console.log('Unknown modal trigger action:', data.action);
+    }
+  }
+
 })();
 
 

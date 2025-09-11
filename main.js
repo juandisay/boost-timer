@@ -127,6 +127,9 @@ function startBackgroundTimer() {
         const completed = timerState.todos.splice(idx, 1)[0];
         sendNotification('To-Do Complete', `"${completed.title}" selesai.`);
         playNotificationSound();
+        
+        // Trigger modal after todo completion
+        triggerNextTodoModal(completed);
       }
       
       // Update active todo
@@ -145,14 +148,21 @@ function startBackgroundTimer() {
       updateTimerDisplay(totalText);
     } else {
       // Regular countdown timer
-      if (timerState.remainingSeconds > 0) {
+      if (timerState.remainingSeconds > 1) {
         timerState.remainingSeconds -= 1;
         const timeText = formatTime(timerState.remainingSeconds);
         updateTimerDisplay(timeText);
+      } else if (timerState.remainingSeconds === 1) {
+        // Skip displaying 00:00:00 and go directly to completion
+        timerState.remainingSeconds = 0;
         
-        if (timerState.remainingSeconds === 0) {
-          completeTimer();
-        }
+        // Stop the timer interval immediately
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+        timerState.isRunning = false;
+        
+        // Complete immediately without showing 00:00:00
+        completeTimer();
       }
     }
   }, 1000);
@@ -197,9 +207,20 @@ function completeTimer() {
   if (timerState.activeTodoId) {
     const idx = timerState.todos.findIndex(t => t.id === timerState.activeTodoId);
     if (idx !== -1) {
+      const completedTodo = timerState.todos[idx];
       timerState.todos.splice(idx, 1);
       timerState.activeTodoId = null;
+      
+      // Trigger modal for next todo
+      triggerNextTodoModal(completedTodo);
     }
+  } else {
+    // For regular timer completion (not in queue mode), still trigger modal
+    triggerNextTodoModal({
+      title: 'Timer completed',
+      estimateSeconds: 0,
+      completed: true
+    });
   }
 }
 
@@ -207,6 +228,13 @@ function completeAllTodos() {
   stopBackgroundTimer();
   sendNotification('Semua To-Do Selesai', 'Semua tugas telah diselesaikan.');
   playNotificationSound();
+  
+  // Trigger modal for next todo when all current todos are completed
+  triggerNextTodoModal({
+    title: 'All tasks completed',
+    estimateSeconds: 0,
+    completed: true
+  });
 }
 
 function sendNotification(title, body) {
@@ -222,6 +250,22 @@ function playNotificationSound() {
   // We'll let the renderer handle sound playing
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('timer:playSound');
+  }
+}
+
+/**
+ * Trigger the next todo modal after a todo completion
+ * @param {Object} completedTodo - The todo that was just completed
+ */
+function triggerNextTodoModal(completedTodo) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Send modal trigger with completed todo context
+    mainWindow.webContents.send('modal:trigger', {
+      action: 'todoCompleted',
+      completedTodo: completedTodo,
+      remainingTodos: timerState.todos.length,
+      queueMode: timerState.queueMode
+    });
   }
 }
 
@@ -321,6 +365,51 @@ ipcMain.handle('timer:getState', () => {
 ipcMain.handle('timer:updateState', (_event, newState) => {
   timerState = { ...timerState, ...newState };
   return true;
+});
+
+// Modal-related IPC handlers
+ipcMain.handle('modal:showNextTodo', () => {
+  // Trigger modal display in renderer
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('modal:trigger', { action: 'show' });
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('modal:hideNextTodo', () => {
+  // Trigger modal hide in renderer
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('modal:trigger', { action: 'hide' });
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('modal:addTodo', (_event, todoData) => {
+  // Handle todo addition from modal
+  try {
+    // Update timer state with new todo
+    if (todoData && todoData.title && todoData.estimateSeconds) {
+      const newTodo = {
+        id: todoData.id || Math.random().toString(36).slice(2, 10),
+        title: todoData.title,
+        estimateSeconds: todoData.estimateSeconds,
+        completed: false
+      };
+      
+      timerState.todos.push(newTodo);
+      
+      // Send notification about new todo
+      sendNotification('New Todo Added', `"${newTodo.title}" has been added to your list.`);
+      
+      return { success: true, todo: newTodo };
+    }
+    return { success: false, error: 'Invalid todo data' };
+  } catch (error) {
+    console.error('Error adding todo from modal:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 function createTray() {

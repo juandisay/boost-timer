@@ -71,6 +71,7 @@
               <input id="todoSearch" type="search" placeholder="Search tasks..." />
             </div>
             <div class="toolbar-right">
+              <button id="modalSettings" class="ghost" title="Modal Settings">⚙️</button>
               <button id="clearAll" class="ghost">Clear All</button>
             </div>
           </div>
@@ -88,6 +89,143 @@
         <div class="focus-actions">
           <button id="focusClose" class="ghost">Close</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Next Todo Modal -->
+    <div id="nextTodoModal" class="next-todo-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">What's next to do?</h2>
+          <p class="modal-subtitle">Keep the momentum going!</p>
+        </div>
+        
+        <form id="nextTodoForm" class="modal-form" autocomplete="off">
+          <div class="modal-input-group">
+            <label for="nextTodoTitle">Task title</label>
+            <input 
+              id="nextTodoTitle" 
+              type="text" 
+              placeholder="Enter your next task..." 
+              required 
+              autocomplete="off"
+            />
+          </div>
+          
+          <div class="modal-input-row">
+            <div class="modal-input-group">
+              <label for="nextTodoEstimate">Time estimate</label>
+              <input 
+                id="nextTodoEstimate" 
+                type="number" 
+                min="1" 
+                max="999" 
+                value="25" 
+                autocomplete="off"
+              />
+            </div>
+            <div class="modal-input-group">
+              <label for="nextTodoUnit">Unit</label>
+              <select id="nextTodoUnit">
+                <option value="m">minutes</option>
+                <option value="h">hours</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="modal-actions">
+            <button type="submit" class="modal-btn modal-btn-primary" data-action="add-start">
+              <span class="btn-icon">▶</span>
+              Add & Start
+            </button>
+            <button type="button" class="modal-btn modal-btn-secondary" data-action="add-more">
+              <span class="btn-icon">+</span>
+              Add More
+            </button>
+            <button type="button" class="modal-btn modal-btn-tertiary" data-action="take-break">
+              <span class="btn-icon">☕</span>
+              Take a Break
+            </button>
+          </div>
+        </form>
+        
+        <div class="modal-countdown">
+          <span class="countdown-text">Modal will appear in:</span>
+          <span id="modalCountdown" class="countdown-timer">20</span>
+          <span class="countdown-unit">seconds</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Settings Modal -->
+    <div id="modalSettingsModal" class="next-todo-modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="settingsModalTitle">Modal Settings</h2>
+          <p class="modal-subtitle">Configure your next todo modal preferences</p>
+        </div>
+        
+        <form id="modalSettingsForm" class="modal-form" autocomplete="off">
+          <div class="modal-input-group">
+            <label>
+              <input id="modalEnabled" type="checkbox" checked />
+              Enable next todo modal
+            </label>
+          </div>
+          
+          <div class="modal-input-group">
+            <label>
+              <input id="showAfterCompletion" type="checkbox" checked />
+              Show modal after task completion
+            </label>
+          </div>
+          
+          <div class="modal-input-group">
+            <label for="autoCloseDelay">Auto-close delay (seconds)</label>
+            <input 
+              id="autoCloseDelay" 
+              type="number" 
+              min="5" 
+              max="120" 
+              value="20" 
+              autocomplete="off"
+            />
+          </div>
+          
+          <div class="modal-input-row">
+            <div class="modal-input-group">
+              <label for="defaultTimeEstimate">Default time estimate</label>
+              <input 
+                id="defaultTimeEstimate" 
+                type="number" 
+                min="1" 
+                max="999" 
+                value="25" 
+                autocomplete="off"
+              />
+            </div>
+            <div class="modal-input-group">
+              <label for="defaultTimeUnit">Default unit</label>
+              <select id="defaultTimeUnit">
+                <option value="m">minutes</option>
+                <option value="h">hours</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="modal-actions">
+            <button type="submit" class="modal-btn modal-btn-primary">
+              <span class="btn-icon">💾</span>
+              Save Settings
+            </button>
+            <button type="button" class="modal-btn modal-btn-secondary" id="cancelSettings">
+              <span class="btn-icon">✕</span>
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

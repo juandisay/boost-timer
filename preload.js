@@ -45,6 +45,17 @@ contextBridge.exposeInMainWorld('api', {
       ipcRenderer.on('timer:playSound', listener);
       return () => ipcRenderer.off('timer:playSound', listener);
     } catch (_) { return () => {}; }
+  },
+  // Modal-related IPC channels
+  showNextTodoModal: () => ipcRenderer.invoke('modal:showNextTodo'),
+  hideNextTodoModal: () => ipcRenderer.invoke('modal:hideNextTodo'),
+  addTodoFromModal: (todoData) => ipcRenderer.invoke('modal:addTodo', todoData),
+  onModalTrigger: (handler) => {
+    try {
+      const listener = (_e, data) => handler(data);
+      ipcRenderer.on('modal:trigger', listener);
+      return () => ipcRenderer.off('modal:trigger', listener);
+    } catch (_) { return () => {}; }
   }
 });
 
