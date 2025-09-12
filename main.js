@@ -340,8 +340,16 @@ function updateTrayTitle() {
   tray.setTitle(`⏱ ${lastTimeText}`);
 }
 
+/**
+ * Toggle the visibility of the main window
+ * Shows the window if hidden, hides it if visible
+ */
 function toggleWindowVisibility() {
-  if (!mainWindow) return;
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
@@ -350,8 +358,39 @@ function toggleWindowVisibility() {
   }
 }
 
+function toggleStartPause() {
+  if (timerState.isRunning) {
+    // Directly pause the timer without re-registering handler
+    timerState.isRunning = false;
+    stopBackgroundTimer();
+    if (tray) {
+      const menu = buildTrayMenu();
+      menu.items[0].label = 'Start';
+      tray.setContextMenu(menu);
+    }
+  } else {
+    // Directly start the timer without re-registering handler
+    timerState.isRunning = true;
+    timerState.remainingSeconds = timerState.remainingSeconds || 0;
+    timerState.initialSeconds = timerState.initialSeconds || 0;
+    timerState.queueMode = timerState.queueMode || false;
+    timerState.todos = timerState.todos || [];
+    timerState.activeTodoId = timerState.activeTodoId || null;
+    startBackgroundTimer();
+    if (tray) {
+      const menu = buildTrayMenu();
+      menu.items[0].label = 'Pause';
+      tray.setContextMenu(menu);
+    }
+  }
+}
+
 function buildTrayMenu() {
   const template = [
+    {
+      label: timerState.isRunning ? 'Pause' : 'Start',
+      click: () => toggleStartPause()
+    },
     {
       label: mainWindow && mainWindow.isVisible() ? 'Hide' : 'Show',
       click: () => toggleWindowVisibility()
