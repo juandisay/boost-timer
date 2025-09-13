@@ -6,9 +6,13 @@
     <title>Focus</title>
     <style>
       html,body{height:100%}
-      body{margin:0;background:#0b0e14;color:#e6e8ee;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+      body{margin:0;background:#121816;color:#e6e8ee;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
       .wrap{height:100%;display:flex;align-items:center;justify-content:center}
-      .time{font-variant-numeric:tabular-nums;font-size:72px;letter-spacing:2px}
+      .time{
+        font-variant-numeric:tabular-nums;
+        font-size:clamp(32px, 10vw, 72px);
+        letter-spacing:2px
+      }
     </style>
   </head>
   <body>
