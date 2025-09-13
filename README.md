@@ -15,14 +15,24 @@ npm install
 
 ## Development
 ```
-npm run dev
+npm start
 ```
 
 ## Build (macOS arm64)
 ```
-npm run build
+npm run build:mac
 ```
 The output `.dmg` and `.app` will be in `dist/`.
+
+```
+npm run build:linux
+```
+The output `.AppImage`, `.deb`, and `.snap` will be in `dist/`.
+
+```
+npm run build:win
+```
+The output `.exe` will be in `dist/`.
 
 ### App Icons
 Place your icons in `build/` before building:

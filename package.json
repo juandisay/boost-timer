@@ -4,12 +4,13 @@
   "description": "A simple, modern desktop boost timer built with Electron.",
   "main": "main.js",
   "type": "commonjs",
-  "author": "",
+  "author": "juandisay <info@juandisay.org>",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "dev": "electron .",
-    "build": "electron-builder --mac --arm64"
+    "build:mac": "electron-builder --mac --arm64",
+    "build:linux": "electron-builder --linux",
+    "build:win": "electron-builder --win"
   },
   "dependencies": {},
   "devDependencies": {
@@ -40,7 +41,14 @@
       "entitlements": null
     },
     "win": { "icon": "build/icon.ico" },
-    "linux": { "icon": "build/icon.png" },
+    "linux": { 
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "deb",
+        "snap"
+      ]
+    },
     "directories": {
       "output": "dist"
     },
