@@ -23,11 +23,41 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 28px; height: 28px; display: grid; place-items: center; background: #151b26; border: 1px solid var(--border); border-radius: 8px; }
 .header h1 { font-size: 18px; margin: 0; font-weight: 700; color: var(--text); letter-spacing: 0.2px; }
-.top-actions { display: flex; align-items: center; gap: 16px; }
+.top-actions { display: flex; align-items: center; gap: 12px; margin-inline-end: auto; }
 .summary { display: flex; align-items: center; gap: 8px; }
 .pill { padding: 6px 10px; background: #141a24; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
 .muted { color: var(--muted); font-size: 12px; }
 .aot { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ff453a;
+  border: 2px solid rgba(255,69,58,0.2);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1000;
+  padding: 0;
+}
+
+.close-btn:hover {
+  background: #ff6b60;
+  border-color: rgba(255,69,58,0.4);
+  transform: scale(1.05);
+}
+
+.close-btn:active {
+  transform: scale(0.95);
+  background: #e63946;
+}
 
 main { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .display { font-variant-numeric: tabular-nums; font-size: 56px; text-align: center; letter-spacing: 1px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: radial-gradient(1200px 400px at 50% 0%, rgba(46, 204, 113, 0.08), transparent 60%); }

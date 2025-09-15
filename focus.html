@@ -5,30 +5,381 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Focus</title>
     <style>
-      html,body{height:100%}
-      body{margin:0;background:#121816;color:#e6e8ee;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-      .wrap{height:100%;display:flex;align-items:center;justify-content:center}
-      .time{
-        font-variant-numeric:tabular-nums;
-        font-size:clamp(32px, 10vw, 72px);
-        letter-spacing:2px
+      /* Base styles */
+      html, body {
+        height: 100%;
+      }
+      
+      body {
+        margin: 0;
+        background: #121816;
+        color: #e6e8ee;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial;
+      }
+      
+      /* Layout */
+      .wrap {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+        /* -webkit-app-region: drag; */
+        /* cursor: move; */
+      }
+      
+      .time-container {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        cursor: move;
+        -webkit-app-region: drag;
+      }
+      
+      /* Timer display */
+      .time {
+        font-variant-numeric: tabular-nums;
+        font-size: clamp(10px, 10vw, 72px);
+        letter-spacing: 2px;
+      }
+      
+
+      
+      /* Top control bar */
+      .top-controls {
+        position: fixed;
+        top: 15px;
+        left: 15px;
+        right: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 1000;
+        cursor: move;
+        -webkit-app-region: no-drag;
+      }
+      
+      /* Make buttons non-draggable */
+      .control-btn, .close-btn {
+        -webkit-app-region: no-drag;
+        position: relative;
+        z-index: 1001;
+      }
+      
+      .timer-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        -webkit-app-region: no-drag;
+        z-index: 1001;
+      }
+      
+      /* Control buttons (start/pause) */
+      .control-btn {
+        background: rgba(230, 232, 238, 0.1);
+        border: 2px solid rgba(230, 232, 238, 0.2);
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #e6e8ee;
+      }
+      
+      .control-btn:hover {
+        background: rgba(230, 232, 238, 0.2);
+        border-color: rgba(230, 232, 238, 0.4);
+      }
+      
+      .control-btn:active {
+        transform: scale(0.95);
+      }
+      
+      .control-btn.clicked {
+        background: rgba(230, 232, 238, 0.3);
+        border-color: rgba(230, 232, 238, 0.6);
+      }
+      
+      .control-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      
+      .control-btn.hidden {
+        display: none;
+      }
+      
+      /* Close button */
+      .close-btn {
+        background: rgba(255, 69, 58, 0.1);
+        border: 2px solid rgba(255, 69, 58, 0.2);
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #ff453a;
+      }
+      
+      .close-btn:hover {
+        background: rgba(255, 69, 58, 0.2);
+        border-color: rgba(255, 69, 58, 0.4);
+      }
+      
+      .close-btn:active {
+        transform: scale(0.95);
+      }
+      
+      .close-btn.clicked {
+        background: rgba(255, 69, 58, 0.3);
+        border-color: rgba(255, 69, 58, 0.6);
+      }
+      
+      .close-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
       }
     </style>
   </head>
   <body>
+    <div class="top-controls">
+      <div class="timer-controls">
+        <button class="control-btn" id="startBtn" title="Start">
+          <svg viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
+        <button class="control-btn hidden" id="pauseBtn" title="Pause">
+          <svg viewBox="0 0 24 24">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+      </div>
+      <button class="close-btn" id="closeBtn" title="Close">
+        <svg viewBox="0 0 24 24">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
     <div class="wrap">
-      <div class="time" id="focusTime">00:00:00</div>
+      <div class="time-container">
+        <div class="time" id="focusTime">00:00:00</div>
+      </div>
     </div>
     <script>
       const el = document.getElementById('focusTime');
-      // initial value
-      if (window.focusApi && typeof window.focusApi.getLatestTime === 'function') {
-        window.focusApi.getLatestTime().then((t) => { if (el) el.textContent = t; }).catch(() => {});
+      const startBtn = document.getElementById('startBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      let isRunning = false;
+      
+      // Function to provide visual feedback when buttons are clicked
+      function showButtonFeedback(button) {
+        button.classList.add('clicked');
+        setTimeout(() => {
+          button.classList.remove('clicked');
+        }, 200);
       }
-      // subscribe updates
+      
+      // Toggle between start and pause buttons
+      function toggleButtons() {
+        if (isRunning) {
+          startBtn.classList.add('hidden');
+          pauseBtn.classList.remove('hidden');
+        } else {
+          startBtn.classList.remove('hidden');
+          pauseBtn.classList.add('hidden');
+        }
+      }
+      
+      // Start button click handler
+      startBtn.addEventListener('click', async () => {
+        console.log('Start button clicked');
+        showButtonFeedback(startBtn);
+        try {
+          // Check if API is available
+          if (!window.api) {
+            console.error('window.api is not available');
+            return;
+          }
+          
+          // Get current timer state to resume or start new timer
+          console.log('Getting timer state...');
+          const timerState = await window.api.getTimerState();
+          console.log('Timer state:', timerState);
+          
+          if (timerState && timerState.remainingSeconds > 0) {
+            // Resume existing timer
+            console.log('Resuming existing timer');
+            await window.api.startTimer({
+              remainingSeconds: timerState.remainingSeconds,
+              initialSeconds: timerState.initialSeconds || timerState.remainingSeconds,
+              queueMode: timerState.queueMode || false,
+              todos: timerState.todos || [],
+              activeTodoId: timerState.activeTodoId || null
+            });
+          } else {
+            // Start new 25-minute focus session
+            console.log('Starting new 25-minute timer');
+            await window.api.startTimer({
+              remainingSeconds: 25 * 60, // 25 minutes
+              initialSeconds: 25 * 60,
+              queueMode: false,
+              todos: [],
+              activeTodoId: null
+            });
+          }
+          isRunning = true;
+          toggleButtons();
+          console.log('Timer started successfully');
+        } catch (error) {
+          console.error('Failed to start timer:', error);
+          // Provide user feedback
+          alert('Failed to start timer. Please check the console for details.');
+        }
+      });
+      
+      // Pause button click handler
+      pauseBtn.addEventListener('click', async () => {
+        console.log('Pause button clicked');
+        showButtonFeedback(pauseBtn);
+        try {
+          // Check if API is available
+          if (!window.api) {
+            console.error('window.api is not available');
+            return;
+          }
+          
+          console.log('Pausing timer...');
+          await window.api.pauseTimer();
+          isRunning = false;
+          toggleButtons();
+          console.log('Timer paused successfully');
+        } catch (error) {
+          console.error('Failed to pause timer:', error);
+          // Provide user feedback
+          alert('Failed to pause timer. Please check the console for details.');
+        }
+      });
+      
+      // Initialize timer state and display
+      async function initializeTimer() {
+        console.log('Initializing timer...');
+        try {
+          // Check if APIs are available
+          if (!window.api) {
+            console.error('window.api is not available during initialization');
+            return;
+          }
+          if (!window.focusApi) {
+            console.error('window.focusApi is not available during initialization');
+          }
+          
+          // Get initial timer state
+          console.log('Getting initial timer state...');
+          const timerState = await window.api.getTimerState();
+          console.log('Initial timer state:', timerState);
+          if (timerState) {
+            isRunning = timerState.isRunning;
+            toggleButtons();
+            console.log('Timer state initialized, isRunning:', isRunning);
+          }
+          
+          // Get initial time display
+          if (window.focusApi) {
+            console.log('Getting latest time...');
+            const latestTime = await window.focusApi.getLatestTime();
+            console.log('Latest time:', latestTime);
+            if (el && latestTime) {
+              el.textContent = latestTime;
+            }
+          }
+          
+          console.log('Timer initialization completed');
+        } catch (error) {
+          console.error('Failed to initialize timer:', error);
+        }
+      }
+      
+      // Subscribe to timer updates from background
+      if (window.api && typeof window.api.onTimerBackgroundUpdate === 'function') {
+        console.log('Setting up timer background update listener');
+        window.api.onTimerBackgroundUpdate((data) => {
+          console.log('Timer background update received:', data);
+          if (el && data.timeText) {
+            el.textContent = data.timeText;
+          }
+          // Update button state based on actual timer state
+          if (data.isRunning !== undefined && data.isRunning !== isRunning) {
+            console.log('Timer state changed:', data.isRunning);
+            isRunning = data.isRunning;
+            toggleButtons();
+          }
+        });
+      } else {
+        console.warn('window.api.onTimerBackgroundUpdate is not available');
+      }
+      
+      // Subscribe to focus-specific updates
       if (window.focusApi && typeof window.focusApi.onUpdate === 'function') {
-        window.focusApi.onUpdate((text) => { if (el) el.textContent = text; });
+        console.log('Setting up focus update listener');
+        window.focusApi.onUpdate((text) => { 
+          console.log('Focus update received:', text);
+          if (el) el.textContent = text; 
+        });
+      } else {
+        console.warn('window.focusApi.onUpdate is not available');
       }
+      
+      // Initialize on page load
+      initializeTimer();
+      
+      // Close button functionality
+      const closeBtn = document.getElementById('closeBtn');
+      closeBtn.addEventListener('click', async () => {
+        console.log('Close button clicked');
+        showButtonFeedback(closeBtn);
+        try {
+          // Use the focus-specific close API
+          if (window.api && typeof window.api.focusClose === 'function') {
+            console.log('Using window.api.focusClose');
+            const result = await window.api.focusClose();
+            console.log('Focus close result:', result);
+            return;
+          }
+          // Fallback to general close API
+          if (window.electronAPI && typeof window.electronAPI.closeWindow === 'function') {
+            console.log('Using window.electronAPI.closeWindow');
+            window.electronAPI.closeWindow();
+            return;
+          }
+          // Browser fallback
+          if (window.close) {
+            console.log('Using window.close');
+            window.close();
+            return;
+          }
+          console.warn('No close method available');
+        } catch (error) {
+          console.error('Failed to close focus window:', error);
+          // Last resort fallback
+          try {
+            if (window.close) {
+              console.log('Using fallback window.close');
+              window.close();
+            }
+          } catch (fallbackError) {
+            console.error('Fallback close also failed:', fallbackError);
+          }
+        }
+      });
     </script>
   </body>
   </html>

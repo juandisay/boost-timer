@@ -26,6 +26,7 @@ function createWindow() {
     minWidth: 560,
     minHeight: 420,
     title: 'Countdown Timer',
+    frame: false,
     alwaysOnTop: isAlwaysOnTop,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -81,6 +82,14 @@ ipcMain.handle('window:setAlwaysOnTop', (_event, shouldBeOnTop) => {
 
 ipcMain.handle('window:getAlwaysOnTop', () => {
   return isAlwaysOnTop;
+});
+
+ipcMain.handle('window:close', (event) => {
+  // Get the window that sent the close request
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (senderWindow && !senderWindow.isDestroyed()) {
+    senderWindow.close();
+  }
 });
 
 ipcMain.handle('notify', (_event, { title, body }) => {
@@ -232,9 +241,9 @@ ipcMain.handle('focus:open', () => {
     return true;
   }
   focusWindow = new BrowserWindow({
-    width: 420,
-    height: 180,
-    resizable: true,
+    width: 262,
+    height: 62,
+    resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -242,7 +251,6 @@ ipcMain.handle('focus:open', () => {
     alwaysOnTop: true,
     skipTaskbar: true,
     transparent: false,
-    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -277,11 +285,11 @@ ipcMain.on('timer:update', (_event, timeText) => {
 // Timer control IPC handlers
 ipcMain.handle('timer:start', (_event, data) => {
   timerState.isRunning = true;
-  timerState.remainingSeconds = data.remainingSeconds || 0;
-  timerState.initialSeconds = data.initialSeconds || 0;
-  timerState.queueMode = data.queueMode || false;
-  timerState.todos = data.todos || [];
-  timerState.activeTodoId = data.activeTodoId || null;
+  timerState.remainingSeconds = data.remainingSeconds !== undefined ? data.remainingSeconds : 0;
+  timerState.initialSeconds = data.initialSeconds !== undefined ? data.initialSeconds : 0;
+  timerState.queueMode = data.queueMode !== undefined ? data.queueMode : false;
+  timerState.todos = data.todos !== undefined ? data.todos : [];
+  timerState.activeTodoId = data.activeTodoId !== undefined ? data.activeTodoId : null;
   
   startBackgroundTimer();
   return true;
@@ -296,11 +304,11 @@ ipcMain.handle('timer:pause', () => {
 ipcMain.handle('timer:reset', (_event, data) => {
   stopBackgroundTimer();
   timerState.isRunning = false;
-  timerState.remainingSeconds = data.remainingSeconds || 0;
-  timerState.initialSeconds = data.initialSeconds || 0;
-  timerState.queueMode = data.queueMode || false;
-  timerState.todos = data.todos || [];
-  timerState.activeTodoId = data.activeTodoId || null;
+  timerState.remainingSeconds = data.remainingSeconds !== undefined ? data.remainingSeconds : 0;
+  timerState.initialSeconds = data.initialSeconds !== undefined ? data.initialSeconds : 0;
+  timerState.queueMode = data.queueMode !== undefined ? data.queueMode : false;
+  timerState.todos = data.todos !== undefined ? data.todos : [];
+  timerState.activeTodoId = data.activeTodoId !== undefined ? data.activeTodoId : null;
   
   const timeText = formatTime(timerState.remainingSeconds);
   updateTimerDisplay(timeText);
@@ -385,6 +393,43 @@ function toggleStartPause() {
   }
 }
 
+/**
+ * Toggle the visibility of the focus window
+ * Shows the focus window if hidden, hides it if visible
+ */
+function toggleFocusWindow() {
+  if (focusWindow && !focusWindow.isDestroyed()) {
+    if (focusWindow.isVisible()) {
+      focusWindow.hide();
+    } else {
+      focusWindow.show();
+      focusWindow.focus();
+    }
+  } else {
+    // Create and show focus window
+    focusWindow = new BrowserWindow({
+      width: 262,
+      height: 62,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+    const focusUrl = new URL(`file://${path.join(__dirname, 'focus.html')}`).toString();
+    focusWindow.loadURL(focusUrl);
+    focusWindow.on('closed', () => { focusWindow = null; });
+  }
+}
+
 function buildTrayMenu() {
   const template = [
     {
@@ -405,6 +450,10 @@ function buildTrayMenu() {
         // refresh menu to reflect state
         if (tray) tray.setContextMenu(buildTrayMenu());
       }
+    },
+    {
+      label: focusWindow && !focusWindow.isDestroyed() && focusWindow.isVisible() ? 'Hide Focus Mode' : 'Show Focus Mode',
+      click: () => toggleFocusWindow()
     },
     { type: 'separator' },
     {

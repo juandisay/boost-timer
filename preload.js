@@ -48,6 +48,15 @@ contextBridge.exposeInMainWorld('api', {
   }
 });
 
+// Expose closeWindow API for main window
+contextBridge.exposeInMainWorld('electronAPI', {
+  closeWindow: () => {
+    try {
+      ipcRenderer.invoke('window:close');
+    } catch (_) {}
+  }
+});
+
 // Additional channel helpers for focus window
 contextBridge.exposeInMainWorld('focusApi', {
   onUpdate: (handler) => {
