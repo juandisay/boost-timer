@@ -23,7 +23,14 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 28px; height: 28px; display: grid; place-items: center; background: #151b26; border: 1px solid var(--border); border-radius: 8px; }
 .header h1 { font-size: 18px; margin: 0; font-weight: 700; color: var(--text); letter-spacing: 0.2px; }
-.top-actions { display: flex; align-items: center; gap: 12px; margin-inline-end: auto; }
+.top-actions { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  margin-inline-end: auto; 
+  -webkit-app-region: drag; 
+  cursor: grabbing;
+}
 .summary { display: flex; align-items: center; gap: 8px; }
 .pill { padding: 6px 10px; background: #141a24; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
 .muted { color: var(--muted); font-size: 12px; }
@@ -60,7 +67,7 @@ body {
 }
 
 main { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
-.display { font-variant-numeric: tabular-nums; font-size: 56px; text-align: center; letter-spacing: 1px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: radial-gradient(1200px 400px at 50% 0%, rgba(46, 204, 113, 0.08), transparent 60%); }
+.display { font-variant-numeric: tabular-nums; font-size: 56px; text-align: center; letter-spacing: 1px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: radial-gradient(1200px 400px at 50% 0%, rgba(46, 204, 113, 0.08), transparent 60%); cursor: grabbing; -webkit-app-region: drag;}
 .display.running { outline: 2px solid var(--primary); color: var(--primary); }
 .display.paused { outline: 2px solid var(--warning); color: var(--warning); }
 .display.finished { outline: 2px solid var(--danger); color: var(--danger); }

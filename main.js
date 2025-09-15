@@ -25,7 +25,7 @@ function createWindow() {
     height: 620,
     minWidth: 560,
     minHeight: 420,
-    title: 'Countdown Timer',
+    title: 'Boost Timer',
     frame: false,
     alwaysOnTop: isAlwaysOnTop,
     webPreferences: {
@@ -333,9 +333,14 @@ ipcMain.handle('timer:updateState', (_event, newState) => {
 
 function createTray() {
   if (tray) return tray;
-  const emptyImg = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z6z3scAAAAASUVORK5CYII=');
+  const iconPath = process.platform === 'darwin' 
+    ? path.join(__dirname, 'build/icon.icns')
+    : process.platform === 'win32'
+    ? path.join(__dirname, 'build/icon.ico') 
+    : path.join(__dirname, 'build/icon.png');
+  const emptyImg = nativeImage.createFromPath(iconPath);
   tray = new Tray(emptyImg);
-  tray.setToolTip('Countdown Timer');
+  tray.setToolTip('Boost Timer');
   updateTrayTitle();
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => toggleWindowVisibility());
