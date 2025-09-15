@@ -5,7 +5,7 @@
   const secondsEl = document.getElementById('seconds');
   const startPauseBtn = document.getElementById('startPause');
   const resetBtn = document.getElementById('reset');
-  const aotCheckbox = document.getElementById('alwaysOnTop');
+  const aotCheckbox = null; // Element doesn't exist in current HTML
   const doneSound = document.getElementById('doneSound');
   const todoForm = document.getElementById('todoForm');
   const todoTitle = document.getElementById('todoTitle');
@@ -89,10 +89,10 @@
     const { timeText, remainingSeconds: bgRemainingSeconds, queueMode: bgQueueMode, todos: bgTodos, activeTodoId: bgActiveTodoId, isRunning } = data;
     
     // Update local state from background timer
-    remainingSeconds = bgRemainingSeconds || remainingSeconds;
-    queueMode = bgQueueMode || queueMode;
-    todos = bgTodos || todos;
-    activeTodoId = bgActiveTodoId || activeTodoId;
+    remainingSeconds = bgRemainingSeconds !== undefined ? bgRemainingSeconds : remainingSeconds;
+    queueMode = bgQueueMode !== undefined ? bgQueueMode : queueMode;
+    todos = bgTodos !== undefined ? bgTodos : todos;
+    activeTodoId = bgActiveTodoId !== undefined ? bgActiveTodoId : activeTodoId;
     
     // Update display
     if (timeText) {
@@ -123,6 +123,47 @@
       doneSound.currentTime = 0; 
       doneSound.play().catch(() => {}); 
     } catch (_) {}
+  }
+
+  // Local timer tick function for fallback when background timer fails
+  function tick() {
+    if (state !== 'running') return;
+    
+    if (queueMode) {
+      // In queue mode, decrement the active todo's time
+      if (activeTodoId) {
+        const activeTodo = todos.find(t => t.id === activeTodoId);
+        if (activeTodo && activeTodo.estimateSeconds > 0) {
+          activeTodo.estimateSeconds--;
+          if (activeTodo.estimateSeconds <= 0) {
+            // Complete current todo and move to next
+            const idx = todos.findIndex(t => t.id === activeTodoId);
+            if (idx !== -1) todos.splice(idx, 1);
+            
+            // Find next incomplete todo
+            const nextIdx = firstIncompleteIndex();
+            if (nextIdx !== -1) {
+              activeTodoId = todos[nextIdx].id;
+            } else {
+              // All todos completed
+              completeAll();
+              return;
+            }
+          }
+        }
+      }
+    } else {
+      // In manual timer mode, decrement remaining seconds
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+          complete();
+          return;
+        }
+      }
+    }
+    
+    render();
   }
 
   async function start() {
@@ -250,16 +291,31 @@
     try { await window.api.focusClose(); } catch (_) {}
   });
 
-  // Always on top
-  (async function initAot() {
-    try {
-      const cur = await window.api.getAlwaysOnTop();
-      aotCheckbox.checked = !!cur;
-    } catch (_) {}
-  })();
-  aotCheckbox.addEventListener('change', async (e) => {
-    try { await window.api.setAlwaysOnTop(e.target.checked); } catch (_) {}
+  // Main window close button
+  const mainCloseBtn = document.getElementById('mainCloseBtn');
+  if (mainCloseBtn) mainCloseBtn.addEventListener('click', () => {
+    // Close the main window
+    if (window.electronAPI && window.electronAPI.closeWindow) {
+      window.electronAPI.closeWindow();
+    } else if (window.close) {
+      window.close();
+    } else {
+      window.history.back();
+    }
   });
+
+  // Always on top - disabled since checkbox doesn't exist in HTML
+  // (async function initAot() {
+  //   try {
+  //     const cur = await window.api.getAlwaysOnTop();
+  //     if (aotCheckbox) aotCheckbox.checked = !!cur;
+  //   } catch (_) {}
+  // })();
+  // if (aotCheckbox) {
+  //   aotCheckbox.addEventListener('change', async (e) => {
+  //     try { await window.api.setAlwaysOnTop(e.target.checked); } catch (_) {}
+  //   });
+  // }
 
   // Initialize background timer listeners
   if (window.api && typeof window.api.onTimerBackgroundUpdate === 'function') {
@@ -277,10 +333,10 @@
         const bgState = await window.api.getTimerState();
         if (bgState) {
           // Sync local state with background timer
-          remainingSeconds = bgState.remainingSeconds || remainingSeconds;
-          queueMode = bgState.queueMode || queueMode;
-          todos = bgState.todos || todos;
-          activeTodoId = bgState.activeTodoId || activeTodoId;
+          remainingSeconds = bgState.remainingSeconds !== undefined ? bgState.remainingSeconds : remainingSeconds;
+          queueMode = bgState.queueMode !== undefined ? bgState.queueMode : queueMode;
+          todos = bgState.todos !== undefined ? bgState.todos : todos;
+          activeTodoId = bgState.activeTodoId !== undefined ? bgState.activeTodoId : activeTodoId;
           state = bgState.isRunning ? 'running' : 'paused';
           backgroundTimerActive = bgState.isRunning;
           
