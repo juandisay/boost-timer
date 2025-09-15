@@ -333,7 +333,12 @@ ipcMain.handle('timer:updateState', (_event, newState) => {
 
 function createTray() {
   if (tray) return tray;
-  const emptyImg = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Z6z3scAAAAASUVORK5CYII=');
+  const iconPath = process.platform === 'darwin' 
+    ? path.join(__dirname, 'build/icon.icns')
+    : process.platform === 'win32'
+    ? path.join(__dirname, 'build/icon.ico') 
+    : path.join(__dirname, 'build/icon.png');
+  const emptyImg = nativeImage.createFromPath(iconPath);
   tray = new Tray(emptyImg);
   tray.setToolTip('Countdown Timer');
   updateTrayTitle();
