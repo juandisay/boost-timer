@@ -1,7 +1,7 @@
 {
   "name": "boost-timer",
   "version": "1.0.6",
-  "description": "A simple, modern desktop boost timer built with Electron.",
+  "description": "A simple, modern desktop #BoostTimer built with Electron.",
   "main": "main.js",
   "type": "commonjs",
   "author": "juandisay <info@juandisay.org>",
@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.example.boosttimer",
-    "productName": "Boost Timer",
+    "productName": "#BoostTimer",
     "files": [
       "**/*",
       "!dist",

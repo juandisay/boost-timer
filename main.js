@@ -25,7 +25,7 @@ function createWindow() {
     height: 620,
     minWidth: 560,
     minHeight: 420,
-    title: 'Boost Timer',
+    title: '#BoostTimer',
     frame: false,
     alwaysOnTop: isAlwaysOnTop,
     webPreferences: {
@@ -438,7 +438,7 @@ function createTray() {
     : path.join(__dirname, 'build/icon.png');
   const emptyImg = nativeImage.createFromPath(iconPath);
   tray = new Tray(emptyImg);
-  tray.setToolTip('Boost Timer');
+  tray.setToolTip('#BoostTimer');
   updateTrayTitle();
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => toggleWindowVisibility());
