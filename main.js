@@ -249,6 +249,13 @@ function playNotificationSound() {
 
 ipcMain.handle('focus:open', () => {
   console.log('focus:open called');
+  
+  // Hide the main window when opening focus window
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log('Hiding main window');
+    mainWindow.hide();
+  }
+  
   if (focusWindow && !focusWindow.isDestroyed()) {
     console.log('Showing existing focus window');
     focusWindow.show();
@@ -315,6 +322,14 @@ ipcMain.handle('focus:close', () => {
   if (focusWindow && !focusWindow.isDestroyed()) {
     focusWindow.close();
     focusWindow = null;
+    
+    // Show the main window when closing focus window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      console.log('Showing main window');
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    
     return true;
   }
   return false;
@@ -553,10 +568,6 @@ function buildTrayMenu() {
         // refresh menu to reflect state
         if (tray) tray.setContextMenu(buildTrayMenu());
       }
-    },
-    {
-      label: focusWindow && !focusWindow.isDestroyed() && focusWindow.isVisible() ? 'Hide Focus Mode' : 'Show Focus Mode',
-      click: () => toggleFocusWindow()
     },
     { type: 'separator' },
     {
