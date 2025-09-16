@@ -1,6 +1,6 @@
 ---
 description: |
-  Boost Timer - Cursor rules for working on this Electron app.
+  #BoostTimer - Cursor rules for working on this Electron app.
 
   Overview
   - Desktop timer with To-Do queueing built on Electron (Node 18+).
