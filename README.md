@@ -1,4 +1,4 @@
-# Boost Timer (Electron)
+# BoostTimer
 
 <img src="build/icon.png" alt="Icon Apps" width="300" height="500">
 
