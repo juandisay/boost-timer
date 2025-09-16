@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.example.boosttimer",
-    "productName": "#BoostTimer",
+    "productName": "BoostTimer",
     "files": [
       "**/*",
       "!dist",
