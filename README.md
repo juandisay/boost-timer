@@ -1,8 +1,8 @@
-# BoostTimer
+# #BoostTimer
 
 <img src="build/icon.png" alt="Icon Apps" width="300" height="500">
 
-A modern, minimal desktop timer with To-Do queueing for macOS (Apple Silicon), built with Electron and vanilla HTML/CSS/JS.
+A modern, minimal desktop timer with To-Do queueing, built with Electron and vanilla HTML/CSS/JS.
 
 ## Requirements
 - Node.js 18+
