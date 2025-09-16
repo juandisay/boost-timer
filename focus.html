@@ -21,6 +21,7 @@
       .wrap {
         height: 100%;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         padding: 0 4px;
@@ -147,6 +148,8 @@
         height: 16px;
         fill: currentColor;
       }
+
+
     </style>
   </head>
   <body>
@@ -162,6 +165,16 @@
             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
           </svg>
         </button>
+        <button class="control-btn" id="toggleTodoBtn" title="View Todo Details">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+        </button>
+        <button class="control-btn hidden" id="backToFocusBtn" title="Back to Focus">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+        </button>
       </div>
       <button class="close-btn" id="closeBtn" title="Close">
         <svg viewBox="0 0 24 24">
@@ -173,8 +186,10 @@
       <div class="time-container">
         <div class="time" id="focusTime">00:00:00</div>
       </div>
+
     </div>
     <script>
+      console.log('=== FOCUS WINDOW SCRIPT LOADED ===');
       const el = document.getElementById('focusTime');
       const startBtn = document.getElementById('startBtn');
       const pauseBtn = document.getElementById('pauseBtn');
@@ -271,6 +286,7 @@
       
       // Initialize timer state and display
       async function initializeTimer() {
+        console.log('=== FOCUS WINDOW INITIALIZATION START ===');
         console.log('Initializing timer...');
         try {
           // Check if APIs are available
@@ -292,13 +308,31 @@
             console.log('Timer state initialized, isRunning:', isRunning);
           }
           
-          // Get initial time display
+          // Get initial time display and active todo
           if (window.focusApi) {
             console.log('Getting latest time...');
             const latestTime = await window.focusApi.getLatestTime();
             console.log('Latest time:', latestTime);
             if (el && latestTime) {
               el.textContent = latestTime;
+            }
+            
+            // Get initial active todo
+            console.log('Getting active todo...');
+            console.log('window.focusApi available:', !!window.focusApi);
+            console.log('getActiveTodo function available:', typeof window.focusApi?.getActiveTodo);
+            
+            try {
+              const activeTodo = await window.focusApi.getActiveTodo();
+              console.log('Active todo result:', activeTodo);
+              console.log('Active todo type:', typeof activeTodo);
+              console.log('Active todo length:', activeTodo?.length);
+              
+              // Just log the todo for debugging - no UI update needed since button is always visible
+              const displayText = activeTodo || 'No active todo';
+              console.log('Initial active todo:', displayText);
+            } catch (error) {
+              console.error('Error getting active todo:', error);
             }
           }
           
@@ -329,14 +363,112 @@
       
       // Subscribe to focus-specific updates
       if (window.focusApi && typeof window.focusApi.onUpdate === 'function') {
-        console.log('Setting up focus update listener');
-        window.focusApi.onUpdate((text) => { 
-          console.log('Focus update received:', text);
-          if (el) el.textContent = text; 
+        console.log('=== SETTING UP FOCUS UPDATE LISTENER ===');
+        window.focusApi.onUpdate((data) => { 
+          console.log('Focus update received:', data);
+          console.log('Data keys:', Object.keys(data || {}));
+          console.log('activeTodo value:', data?.activeTodo);
+          console.log('activeTodo type:', typeof data?.activeTodo);
+          
+          // Update timer display
+          if (el && data.timeText) {
+            el.textContent = data.timeText;
+          }
+
+          // Log active todo for debugging (no UI update needed since button is always visible)
+          if (data.activeTodo) {
+            let todoText = 'No active todo';
+            
+            if (typeof data.activeTodo === 'string') {
+              todoText = data.activeTodo;
+            } else if (typeof data.activeTodo === 'object' && data.activeTodo !== null) {
+              todoText = data.activeTodo.title || JSON.stringify(data.activeTodo);
+            }
+            
+            console.log('Active todo updated:', todoText);
+          }
         });
       } else {
         console.warn('window.focusApi.onUpdate is not available');
       }
+
+      const toggleBtn = document.getElementById('toggleTodoBtn');
+      const backBtn = document.getElementById('backToFocusBtn');
+      
+      // Function to resize window
+      async function resizeWindow(width, height) {
+        try {
+          if (window.api && typeof window.api.resizeWindow === 'function') {
+            console.log(`Resizing window to ${width}x${height}`);
+            await window.api.resizeWindow(width, height);
+          } else {
+            console.warn('Window resize API not available');
+          }
+        } catch (error) {
+          console.error('Failed to resize window:', error);
+        }
+      }
+      
+      // Function to toggle between detail and focus modes
+      function toggleDetailMode(showDetails) {
+        if (showDetails) {
+          // Show details mode
+          toggleBtn.classList.add('hidden');
+          backBtn.classList.remove('hidden');
+        } else {
+          // Show focus mode
+          toggleBtn.classList.remove('hidden');
+          backBtn.classList.add('hidden');
+        }
+      }
+      
+      toggleBtn.addEventListener('click', async () => {
+        console.log('Todo toggle button clicked - switching to detail mode');
+        showButtonFeedback(toggleBtn);
+        
+        try {
+          // Resize window to detail size (390x371px)
+          await resizeWindow(390, 371);
+          
+          // Toggle to detail mode
+          toggleDetailMode(true);
+          
+          // Navigate to todo detail page
+          window.location.href = 'todo-detail.html';
+        } catch (error) {
+          console.error('Failed to switch to detail mode:', error);
+          // Fallback: show alert with todo details
+          try {
+            if (window.focusApi) {
+              const activeTodo = await window.focusApi.getActiveTodo();
+              const todoText = activeTodo || 'No active todo';
+              alert(`Current Todo: ${todoText}`);
+            } else {
+              alert('Todo details not available');
+            }
+          } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+            alert('Unable to show todo details');
+          }
+        }
+      });
+      
+      backBtn.addEventListener('click', async () => {
+        console.log('Back to focus button clicked - switching to focus mode');
+        showButtonFeedback(backBtn);
+        
+        try {
+          // Resize window to default focus size (377x62px)
+        await resizeWindow(377, 62);
+          
+          // Toggle to focus mode
+          toggleDetailMode(false);
+          
+          console.log('Switched back to focus mode');
+        } catch (error) {
+          console.error('Failed to switch to focus mode:', error);
+        }
+      });
       
       // Initialize on page load
       initializeTimer();
