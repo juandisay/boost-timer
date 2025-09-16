@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   setAlwaysOnTop: async (onTop) => ipcRenderer.invoke('window:setAlwaysOnTop', onTop),
   getAlwaysOnTop: async () => ipcRenderer.invoke('window:getAlwaysOnTop'),
+  resizeWindow: async (width, height) => ipcRenderer.invoke('window:resize', width, height),
   notify: async (title, body) => {
     try {
       // Try HTML5 Notification first (renderer-friendly)
@@ -61,12 +62,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 contextBridge.exposeInMainWorld('focusApi', {
   onUpdate: (handler) => {
     try {
-      const listener = (_e, text) => handler(text);
+      const listener = (_e, data) => handler(data);
       ipcRenderer.on('focus:update', listener);
       return () => ipcRenderer.off('focus:update', listener);
     } catch (_) { return () => {}; }
   },
-  getLatestTime: () => ipcRenderer.invoke('timer:getLatest').catch(() => '00:00:00')
+  getLatestTime: () => ipcRenderer.invoke('timer:getLatest').catch(() => '00:00:00'),
+  resize: (expanded) => ipcRenderer.invoke('focus:resize', expanded),
+  getActiveTodo: () => ipcRenderer.invoke('focus:getActiveTodo').catch(() => null)
 });
 
 

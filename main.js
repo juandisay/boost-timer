@@ -193,7 +193,20 @@ function updateTimerDisplay(timeText) {
   
   // Send update to focus window
   if (focusWindow && !focusWindow.isDestroyed()) {
-    focusWindow.webContents.send('focus:update', timeText);
+    const activeTodo = timerState.activeTodoId
+      ? timerState.todos.find(t => t.id === timerState.activeTodoId)
+      : null;
+    
+    console.log('Sending focus:update with:');
+    console.log('  timeText:', timeText);
+    console.log('  timerState.activeTodoId:', timerState.activeTodoId);
+    console.log('  found activeTodo:', activeTodo);
+    console.log('  activeTodo title:', activeTodo ? activeTodo.title : null);
+    
+    focusWindow.webContents.send('focus:update', {
+      timeText,
+      activeTodo: activeTodo ? activeTodo.title : null
+    });
   }
 }
 
@@ -235,13 +248,30 @@ function playNotificationSound() {
 }
 
 ipcMain.handle('focus:open', () => {
+  console.log('focus:open called');
   if (focusWindow && !focusWindow.isDestroyed()) {
+    console.log('Showing existing focus window');
     focusWindow.show();
     focusWindow.focus();
+    
+    // Send current state to focus window
+    const activeTodo = timerState.activeTodoId
+      ? timerState.todos.find(t => t.id === timerState.activeTodoId)
+      : null;
+    
+    console.log('Sending initial focus:update to existing window:');
+    console.log('  timeText:', lastTimeText);
+    console.log('  activeTodo:', activeTodo ? activeTodo.title : null);
+    
+    focusWindow.webContents.send('focus:update', {
+      timeText: lastTimeText,
+      activeTodo: activeTodo ? activeTodo.title : null
+    });
+    
     return true;
   }
   focusWindow = new BrowserWindow({
-    width: 262,
+    width: 377,
     height: 62,
     resizable: false,
     minimizable: false,
@@ -260,6 +290,24 @@ ipcMain.handle('focus:open', () => {
   const focusUrl = new URL(`file://${path.join(__dirname, 'focus.html')}`).toString();
   focusWindow.loadURL(focusUrl);
   focusWindow.on('closed', () => { focusWindow = null; });
+  
+  // Send initial state once the window is ready
+  focusWindow.webContents.once('did-finish-load', () => {
+    console.log('Focus window did-finish-load event fired');
+    const activeTodo = timerState.activeTodoId
+      ? timerState.todos.find(t => t.id === timerState.activeTodoId)
+      : null;
+    
+    console.log('Sending initial focus:update to new window:');
+    console.log('  timeText:', lastTimeText);
+    console.log('  activeTodo:', activeTodo ? activeTodo.title : null);
+    
+    focusWindow.webContents.send('focus:update', {
+      timeText: lastTimeText,
+      activeTodo: activeTodo ? activeTodo.title : null
+    });
+  });
+  
   return true;
 });
 
@@ -270,6 +318,56 @@ ipcMain.handle('focus:close', () => {
     return true;
   }
   return false;
+});
+
+/**
+ * Handle focus window resize requests
+ * @param {boolean} expanded - Whether the todo section is expanded
+ */
+ipcMain.handle('focus:resize', (_event, expanded) => {
+  if (focusWindow && !focusWindow.isDestroyed()) {
+    const baseHeight = 62;
+    const expandedHeight = 150; // Height when todo is visible
+    const newHeight = expanded ? expandedHeight : baseHeight;
+    
+    focusWindow.setSize(262, newHeight);
+    return true;
+  }
+  return false;
+});
+
+/**
+ * Handle window resize requests with specific dimensions
+ * @param {number} width - The desired width
+ * @param {number} height - The desired height
+ */
+ipcMain.handle('window:resize', (_event, width, height) => {
+  if (focusWindow && !focusWindow.isDestroyed()) {
+    console.log(`Resizing focus window to ${width}x${height}`);
+    focusWindow.setSize(width, height);
+    return true;
+  }
+  return false;
+});
+
+/**
+ * Get current active todo for focus window initialization
+ * @returns {string|null} - The title of the active todo or null
+ */
+ipcMain.handle('focus:getActiveTodo', () => {
+  console.log('focus:getActiveTodo called');
+  console.log('timerState.activeTodoId:', timerState.activeTodoId);
+  console.log('timerState.todos:', timerState.todos);
+  console.log('timerState.todos.length:', timerState.todos.length);
+  
+  const activeTodo = timerState.activeTodoId
+    ? timerState.todos.find(t => t.id === timerState.activeTodoId)
+    : null;
+  
+  console.log('Found activeTodo:', activeTodo);
+  const result = activeTodo ? activeTodo.title : null;
+  console.log('Returning result:', result);
+  return result;
 });
 
 ipcMain.on('timer:update', (_event, timeText) => {
@@ -413,9 +511,9 @@ function toggleFocusWindow() {
   } else {
     // Create and show focus window
     focusWindow = new BrowserWindow({
-      width: 262,
+      width: 377,
       height: 62,
-      resizable: false,
+      resizable: true,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,

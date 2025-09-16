@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todo Details</title>
+    <style>
+      /* Base styles */
+      html, body {
+        height: 100%;
+      }
+      
+      body {
+        margin: 0;
+        background: #121816;
+        color: #e6e8ee;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial;
+      }
+      
+      /* Layout */
+      .wrap {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(230, 232, 238, 0.1);
+      }
+      
+      .back-btn {
+        background: rgba(230, 232, 238, 0.1);
+        border: 2px solid rgba(230, 232, 238, 0.2);
+        border-radius: 8px;
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #e6e8ee;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      
+      .back-btn:hover {
+        background: rgba(230, 232, 238, 0.2);
+        border-color: rgba(230, 232, 238, 0.4);
+      }
+      
+      .back-btn:active {
+        transform: scale(0.95);
+      }
+      
+      .back-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      
+      .close-btn {
+        background: rgba(255, 69, 58, 0.1);
+        border: 2px solid rgba(255, 69, 58, 0.2);
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #ff453a;
+      }
+      
+      .close-btn:hover {
+        background: rgba(255, 69, 58, 0.2);
+        border-color: rgba(255, 69, 58, 0.4);
+      }
+      
+      .close-btn:active {
+        transform: scale(0.95);
+      }
+      
+      .close-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      
+      /* Content */
+      .content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      
+      .todo-card {
+        background: rgba(230, 232, 238, 0.05);
+        border: 1px solid rgba(230, 232, 238, 0.1);
+        border-radius: 12px;
+        padding: 24px;
+        transition: all 0.2s ease;
+      }
+      
+      .todo-card:hover {
+        background: rgba(230, 232, 238, 0.08);
+        border-color: rgba(230, 232, 238, 0.2);
+      }
+      
+      .todo-title {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        color: #e6e8ee;
+        line-height: 1.3;
+      }
+      
+      .todo-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        color: rgba(230, 232, 238, 0.7);
+      }
+      
+      .meta-item svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+        opacity: 0.6;
+      }
+      
+      .todo-description {
+        font-size: 16px;
+        line-height: 1.6;
+        color: rgba(230, 232, 238, 0.9);
+        margin-bottom: 20px;
+      }
+      
+      .todo-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .status-active {
+        background: rgba(52, 199, 89, 0.2);
+        color: #34c759;
+        border: 1px solid rgba(52, 199, 89, 0.3);
+      }
+      
+      .status-inactive {
+        background: rgba(230, 232, 238, 0.1);
+        color: rgba(230, 232, 238, 0.6);
+        border: 1px solid rgba(230, 232, 238, 0.2);
+      }
+      
+      .no-todo {
+        text-align: center;
+        padding: 60px 20px;
+        color: rgba(230, 232, 238, 0.5);
+      }
+      
+      .no-todo svg {
+        width: 48px;
+        height: 48px;
+        fill: currentColor;
+        margin-bottom: 16px;
+        opacity: 0.3;
+      }
+      
+      .no-todo h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: rgba(230, 232, 238, 0.6);
+      }
+      
+      .no-todo p {
+        font-size: 14px;
+        margin: 0;
+      }
+      
+      /* Loading state */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        color: rgba(230, 232, 238, 0.6);
+      }
+      
+      .loading svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+        animation: spin 1s linear infinite;
+        margin-right: 12px;
+      }
+      
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <button class="back-btn" id="backBtn">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          </svg>
+          Back to Focus
+        </button>
+        <button class="close-btn" id="closeBtn" title="Close">
+          <svg viewBox="0 0 24 24">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="content">
+        <div class="loading" id="loadingState">
+          <svg viewBox="0 0 24 24">
+            <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+          </svg>
+          Loading todo details...
+        </div>
+        
+        <div class="todo-card" id="todoCard" style="display: none;">
+          <div class="todo-title" id="todoTitle">Todo Title</div>
+          <div class="todo-meta">
+            <div class="meta-item">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+              <span class="todo-status status-active" id="todoStatus">Active</span>
+            </div>
+            <div class="meta-item" id="todoCreated">
+              <svg viewBox="0 0 24 24">
+                <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+              </svg>
+              <span>Created: <span id="createdDate">--</span></span>
+            </div>
+            <div class="meta-item" id="todoId">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span>ID: <span id="todoIdValue">--</span></span>
+            </div>
+          </div>
+          <div class="todo-description" id="todoDescription">
+            Todo description will appear here...
+          </div>
+        </div>
+        
+        <div class="no-todo" id="noTodoState" style="display: none;">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          <h3>No Active Todo</h3>
+          <p>There is currently no active todo to display.</p>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      console.log('=== TODO DETAIL PAGE LOADED ===');
+      
+      // Function to provide visual feedback when buttons are clicked
+      function showButtonFeedback(button) {
+        button.classList.add('clicked');
+        setTimeout(() => {
+          button.classList.remove('clicked');
+        }, 200);
+      }
+      
+      // Back button functionality
+      const backBtn = document.getElementById('backBtn');
+      backBtn.addEventListener('click', async () => {
+        console.log('Back button clicked');
+        showButtonFeedback(backBtn);
+        
+        try {
+          // Resize window to default focus size (377x62px) before navigating back
+          if (window.api && typeof window.api.resizeWindow === 'function') {
+            console.log('Resizing window to default focus size: 377x62');
+            await window.api.resizeWindow(377, 62);
+          } else {
+            console.warn('Window resize API not available');
+          }
+        } catch (error) {
+          console.error('Failed to resize window:', error);
+        }
+        
+        // Navigate back to focus window
+        window.location.href = 'focus.html';
+      });
+      
+      // Close button functionality
+      const closeBtn = document.getElementById('closeBtn');
+      closeBtn.addEventListener('click', async () => {
+        console.log('Close button clicked');
+        showButtonFeedback(closeBtn);
+        try {
+          // Use the focus-specific close API
+          if (window.api && typeof window.api.focusClose === 'function') {
+            console.log('Using window.api.focusClose');
+            const result = await window.api.focusClose();
+            console.log('Focus close result:', result);
+            return;
+          }
+          // Fallback to general close API
+          if (window.electronAPI && typeof window.electronAPI.closeWindow === 'function') {
+            console.log('Using window.electronAPI.closeWindow');
+            window.electronAPI.closeWindow();
+            return;
+          }
+          // Browser fallback
+          if (window.close) {
+            console.log('Using window.close');
+            window.close();
+            return;
+          }
+          console.warn('No close method available');
+        } catch (error) {
+          console.error('Failed to close todo detail window:', error);
+          // Last resort fallback
+          try {
+            if (window.close) {
+              console.log('Using fallback window.close');
+              window.close();
+            }
+          } catch (fallbackError) {
+            console.error('Fallback close also failed:', fallbackError);
+          }
+        }
+      });
+      
+      // Load and display todo details
+      async function loadTodoDetails() {
+        console.log('Loading todo details...');
+        const loadingState = document.getElementById('loadingState');
+        const todoCard = document.getElementById('todoCard');
+        const noTodoState = document.getElementById('noTodoState');
+        
+        try {
+          // Check if APIs are available
+          if (!window.focusApi) {
+            console.error('window.focusApi is not available');
+            showNoTodo();
+            return;
+          }
+          
+          // Get active todo
+          console.log('Getting active todo...');
+          const activeTodo = await window.focusApi.getActiveTodo();
+          console.log('Active todo result:', activeTodo);
+          
+          // Hide loading state
+          loadingState.style.display = 'none';
+          
+          if (!activeTodo || activeTodo === 'No active todo') {
+            showNoTodo();
+            return;
+          }
+          
+          // Display todo details
+          displayTodoDetails(activeTodo);
+          
+        } catch (error) {
+          console.error('Failed to load todo details:', error);
+          loadingState.style.display = 'none';
+          showNoTodo();
+        }
+      }
+      
+      function showNoTodo() {
+        document.getElementById('todoCard').style.display = 'none';
+        document.getElementById('noTodoState').style.display = 'block';
+      }
+      
+      function displayTodoDetails(todoData) {
+        console.log('Displaying todo details:', todoData);
+        
+        const todoCard = document.getElementById('todoCard');
+        const todoTitle = document.getElementById('todoTitle');
+        const todoDescription = document.getElementById('todoDescription');
+        const todoStatus = document.getElementById('todoStatus');
+        const createdDate = document.getElementById('createdDate');
+        const todoIdValue = document.getElementById('todoIdValue');
+        
+        // Handle different data types
+        let title = 'Untitled Todo';
+        let description = 'No description available';
+        let id = 'N/A';
+        let created = 'Unknown';
+        
+        if (typeof todoData === 'string') {
+          title = todoData;
+          description = todoData;
+        } else if (typeof todoData === 'object' && todoData !== null) {
+          title = todoData.title || todoData.text || todoData.content || 'Untitled Todo';
+          description = todoData.description || todoData.details || todoData.content || title;
+          id = todoData.id || todoData._id || 'N/A';
+          created = todoData.created || todoData.createdAt || todoData.date || 'Unknown';
+        }
+        
+        // Format created date if it's a timestamp
+        if (created !== 'Unknown' && !isNaN(Date.parse(created))) {
+          const date = new Date(created);
+          created = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        // Update UI elements
+        todoTitle.textContent = title;
+        todoDescription.textContent = description;
+        todoIdValue.textContent = id;
+        createdDate.textContent = created;
+        
+        // Show the todo card
+        todoCard.style.display = 'block';
+        document.getElementById('noTodoState').style.display = 'none';
+      }
+      
+      // Initialize on page load
+      loadTodoDetails();
+    </script>
+  </body>
+</html>
