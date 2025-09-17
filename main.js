@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, screen } = require('electron');
 const path = require('path');
 
 let mainWindow = null;
@@ -18,6 +18,32 @@ let timerState = {
   activeTodoId: null,
   intervalId: null
 };
+
+// Utility functions for screen positioning
+function getMainWindowScreen() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return screen.getPrimaryDisplay();
+  }
+  
+  const windowBounds = mainWindow.getBounds();
+  const windowCenter = {
+    x: windowBounds.x + windowBounds.width / 2,
+    y: windowBounds.y + windowBounds.height / 2
+  };
+  
+  return screen.getDisplayNearestPoint(windowCenter);
+}
+
+function positionWindowOnSameScreen(window, targetScreen) {
+  const { workArea } = targetScreen;
+  const windowBounds = window.getBounds();
+  
+  // Position the window in the center of the target screen's work area
+  const x = workArea.x + Math.floor((workArea.width - windowBounds.width) / 2);
+  const y = workArea.y + Math.floor((workArea.height - windowBounds.height) / 2);
+  
+  window.setPosition(x, y);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -258,8 +284,16 @@ ipcMain.handle('focus:open', () => {
   
   if (focusWindow && !focusWindow.isDestroyed()) {
     console.log('Showing existing focus window');
+    
+    // Reposition the focus window on the same screen as main window
+    const targetScreen = getMainWindowScreen();
+    positionWindowOnSameScreen(focusWindow, targetScreen);
+    
     focusWindow.show();
     focusWindow.focus();
+    
+    // Refresh tray menu when showing existing focus window
+    if (tray) tray.setContextMenu(buildTrayMenu());
     
     // Send current state to focus window
     const activeTodo = timerState.activeTodoId
@@ -288,15 +322,37 @@ ipcMain.handle('focus:open', () => {
     alwaysOnTop: true,
     skipTaskbar: true,
     transparent: false,
+    show: false, // Don't show immediately, position first
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
+  
+  // Position the focus window on the same screen as the main window
+  const targetScreen = getMainWindowScreen();
+  positionWindowOnSameScreen(focusWindow, targetScreen);
+  
   const focusUrl = new URL(`file://${path.join(__dirname, 'focus.html')}`).toString();
   focusWindow.loadURL(focusUrl);
-  focusWindow.on('closed', () => { focusWindow = null; });
+  focusWindow.on('closed', () => { 
+    focusWindow = null; 
+    // Refresh tray menu when focus window is closed
+    if (tray) tray.setContextMenu(buildTrayMenu());
+  });
+  
+  // Add event listeners for show/hide to update tray menu
+  focusWindow.on('show', () => {
+    if (tray) tray.setContextMenu(buildTrayMenu());
+  });
+  
+  focusWindow.on('hide', () => {
+    if (tray) tray.setContextMenu(buildTrayMenu());
+  });
+  
+  // Show the window after positioning
+  focusWindow.show();
   
   // Send initial state once the window is ready
   focusWindow.webContents.once('did-finish-load', () => {
@@ -329,6 +385,9 @@ ipcMain.handle('focus:close', () => {
       mainWindow.show();
       mainWindow.focus();
     }
+    
+    // Refresh tray menu when focus window is closed
+    if (tray) tray.setContextMenu(buildTrayMenu());
     
     return true;
   }
@@ -467,8 +526,35 @@ function updateTrayTitle() {
 }
 
 /**
- * Toggle the visibility of the main window
- * Shows the window if hidden, hides it if visible
+ * Check if any application window is currently visible
+ * @returns {boolean} True if main window or focus window is visible
+ */
+function isAnyWindowVisible() {
+  const mainVisible = mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible();
+  const focusVisible = focusWindow && !focusWindow.isDestroyed() && focusWindow.isVisible();
+  return mainVisible || focusVisible;
+}
+
+/**
+ * Get a description of which windows are currently visible
+ * @returns {string} Description for tray menu label
+ */
+function getWindowVisibilityLabel() {
+  const mainVisible = mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible();
+  const focusVisible = focusWindow && !focusWindow.isDestroyed() && focusWindow.isVisible();
+  
+  if (mainVisible && focusVisible) {
+    return 'Hide All';
+  } else if (mainVisible || focusVisible) {
+    return 'Hide';
+  } else {
+    return 'Show';
+  }
+}
+
+/**
+ * Toggle the visibility of both main and focus windows
+ * Shows windows if any are hidden, hides all if all are visible
  */
 function toggleWindowVisibility() {
   if (!mainWindow) {
@@ -476,9 +562,19 @@ function toggleWindowVisibility() {
     return;
   }
   
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
+  const mainVisible = mainWindow.isVisible();
+  const focusVisible = focusWindow && !focusWindow.isDestroyed() && focusWindow.isVisible();
+  
+  // If any window is visible, hide all windows
+  if (mainVisible || focusVisible) {
+    if (mainVisible) {
+      mainWindow.hide();
+    }
+    if (focusVisible) {
+      focusWindow.hide();
+    }
   } else {
+    // If no windows are visible, show the main window
     mainWindow.show();
     mainWindow.focus();
   }
@@ -520,15 +616,21 @@ function toggleFocusWindow() {
     if (focusWindow.isVisible()) {
       focusWindow.hide();
     } else {
+      // Reposition the focus window on the same screen as main window
+      const targetScreen = getMainWindowScreen();
+      positionWindowOnSameScreen(focusWindow, targetScreen);
+      
       focusWindow.show();
       focusWindow.focus();
     }
+    // Refresh tray menu after show/hide
+    if (tray) tray.setContextMenu(buildTrayMenu());
   } else {
     // Create and show focus window
     focusWindow = new BrowserWindow({
       width: 377,
       height: 62,
-      resizable: true,
+      resizable: false,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -536,15 +638,37 @@ function toggleFocusWindow() {
       alwaysOnTop: true,
       skipTaskbar: true,
       transparent: false,
+      show: false, // Don't show immediately, position first
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false
       }
     });
+    
+    // Position the focus window on the same screen as the main window
+    const targetScreen = getMainWindowScreen();
+    positionWindowOnSameScreen(focusWindow, targetScreen);
+    
     const focusUrl = new URL(`file://${path.join(__dirname, 'focus.html')}`).toString();
     focusWindow.loadURL(focusUrl);
-    focusWindow.on('closed', () => { focusWindow = null; });
+    focusWindow.on('closed', () => { 
+      focusWindow = null; 
+      // Refresh tray menu when focus window is closed
+      if (tray) tray.setContextMenu(buildTrayMenu());
+    });
+    
+    // Add event listeners for show/hide to update tray menu
+    focusWindow.on('show', () => {
+      if (tray) tray.setContextMenu(buildTrayMenu());
+    });
+    
+    focusWindow.on('hide', () => {
+      if (tray) tray.setContextMenu(buildTrayMenu());
+    });
+    
+    // Show the window after positioning
+    focusWindow.show();
   }
 }
 
@@ -555,7 +679,7 @@ function buildTrayMenu() {
       click: () => toggleStartPause()
     },
     {
-      label: mainWindow && mainWindow.isVisible() ? 'Hide' : 'Show',
+      label: getWindowVisibilityLabel(),
       click: () => toggleWindowVisibility()
     },
     {
